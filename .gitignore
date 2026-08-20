@@ -1,0 +1,23 @@
+# Gradle and Kotlin build output
+.gradle/
+.kotlin/
+build/
+out/
+
+# IntelliJ and local project state
+.idea/
+*.iml
+local.properties
+
+# Read the Docs / Sphinx output
+docs/_build/
+
+# Operating-system and editor noise
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local hardware captures and notes
+captures/
+*.bin
+*.pcap

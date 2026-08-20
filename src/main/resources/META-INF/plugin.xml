@@ -1,0 +1,32 @@
+<idea-plugin>
+    <id>com.inspyresoftworks.ti84evo.pycharm</id>
+    <name>TI-84 Evo</name>
+    <vendor>Inspyre-Softworks</vendor>
+
+    <icon>icons/pluginIcon.svg</icon>
+    <icon dark-mode="true">icons/pluginIcon_dark.svg</icon>
+
+    <description><![CDATA[
+        Native TI-84 Evo integration for PyCharm.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.python</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <additionalLibraryRootsProvider
+            implementation="com.inspyresoftworks.ti84evo.python.TiPythonLibraryRootsProvider" />
+        <completion.contributor
+            language="Python"
+            implementationClass="com.inspyresoftworks.ti84evo.python.TiPythonModuleCompletionContributor" />
+        <toolWindow
+            id="TI-84 Evo"
+            icon="/icons/toolWindowIcon.svg"
+            anchor="right"
+            factoryClass="com.inspyresoftworks.ti84evo.ui.EvoToolWindowFactory" />
+    </extensions>
+
+    <extensions defaultExtensionNs="Pythonid">
+        <importResolver implementation="com.inspyresoftworks.ti84evo.python.TiPythonImportResolver" />
+    </extensions>
+</idea-plugin>
