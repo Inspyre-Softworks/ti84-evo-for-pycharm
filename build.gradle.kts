@@ -8,6 +8,24 @@ plugins {
 group = "com.inspyresoftworks"
 version = "0.2.4-SNAPSHOT"
 
+// OneDrive can turn generated directories into cloud placeholders while Gradle
+// is replacing them. Keep generated output local for this specific checkout
+// shape, while allowing developers and CI to override the location explicitly.
+val configuredBuildDirectory = providers.gradleProperty("ti84EvoBuildDir")
+    .orElse(providers.environmentVariable("TI84_EVO_BUILD_DIR"))
+    .orNull
+
+if (!configuredBuildDirectory.isNullOrBlank()) {
+    layout.buildDirectory.set(file(configuredBuildDirectory))
+} else if (
+    System.getProperty("os.name").contains("Windows", ignoreCase = true) &&
+    projectDir.absolutePath.contains("\\OneDrive\\", ignoreCase = true)
+) {
+    System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }?.let { localAppData ->
+        layout.buildDirectory.set(file("$localAppData\\ti84-evo-for-pycharm\\build"))
+    }
+}
+
 repositories {
     mavenCentral()
     intellijPlatform {

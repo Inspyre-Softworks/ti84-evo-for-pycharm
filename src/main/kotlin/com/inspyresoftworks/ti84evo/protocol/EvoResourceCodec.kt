@@ -9,6 +9,21 @@ object EvoResourceCodec {
     data class ResolvedResource(val bytes: ByteArray, val mode: String)
 
     fun resolve(expectedLength: Int, decodedData: ByteArray, wireData: ByteArray): ResolvedResource {
+        val kermitData = runCatching { KermitPacketCodec.decodeData(wireData) }.getOrNull()
+
+        // Dynamic info resources such as the calculator directory use zero as
+        // an unknown-length sentinel even though D frames contain a payload.
+        // Decode the complete Kermit stream in that case; nonzero length
+        // announcements remain strict so truncated transfers are still caught.
+        if (expectedLength == 0) {
+            return ResolvedResource(
+                kermitData ?: throw EvoProtocolException("invalid Kermit data in unannounced resource"),
+                "D-kermit:unannounced",
+            )
+        }
+        if (kermitData?.size == expectedLength) {
+            return ResolvedResource(kermitData, "D-kermit")
+        }
         if (decodedData.size == expectedLength) {
             return ResolvedResource(decodedData, "D-unescaped")
         }

@@ -3,9 +3,6 @@
     <name>TI-84 Evo</name>
     <vendor>Inspyre-Softworks</vendor>
 
-    <icon>icons/pluginIcon.svg</icon>
-    <icon dark-mode="true">icons/pluginIcon_dark.svg</icon>
-
     <description><![CDATA[
         Native TI-84 Evo integration for PyCharm.
     ]]></description>

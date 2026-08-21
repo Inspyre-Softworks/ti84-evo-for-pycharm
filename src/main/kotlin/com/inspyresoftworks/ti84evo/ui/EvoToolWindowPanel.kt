@@ -10,7 +10,9 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonPayload
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
@@ -27,6 +29,7 @@ import javax.swing.JFileChooser
 import javax.swing.JPanel
 import javax.swing.JSplitPane
 import javax.swing.filechooser.FileNameExtensionFilter
+import javax.swing.table.DefaultTableModel
 
 /**
  * TI-84 Evo tool-window UI.
@@ -43,6 +46,32 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     private val screen = JBLabel("No screenshot", JBLabel.CENTER).apply {
         preferredSize = Dimension(640, 480)
     }
+    private val directoryModel = object : DefaultTableModel(
+        arrayOf("Name", "Type", "Size", "Location"),
+        0,
+    ) {
+        override fun isCellEditable(row: Int, column: Int): Boolean = false
+
+        override fun getColumnClass(columnIndex: Int): Class<*> = when (columnIndex) {
+            2 -> Long::class.javaObjectType
+            else -> String::class.java
+        }
+    }
+    private val directoryTable = JBTable(directoryModel).apply {
+        autoCreateRowSorter = true
+        fillsViewportHeight = true
+        emptyText.text = "Press Browse calculator files to read the directory"
+        columnModel.getColumn(0).preferredWidth = 180
+        columnModel.getColumn(1).preferredWidth = 140
+        columnModel.getColumn(2).preferredWidth = 90
+        columnModel.getColumn(3).preferredWidth = 80
+    }
+    private val screenPane = JBScrollPane(screen)
+    private val directoryPane = JBScrollPane(directoryTable)
+    private val contentTabs = JBTabbedPane().apply {
+        addTab("Screen", screenPane)
+        addTab("Calculator Files", directoryPane)
+    }
 
     init {
         border = JBUI.Borders.empty(8)
@@ -52,6 +81,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             EvoToolWindowActions(
                 refresh = ::refresh,
                 readAttributes = ::readAttributes,
+                browseFiles = ::browseFiles,
                 captureScreen = ::captureScreen,
                 uploadCurrentPython = ::uploadCurrentPython,
                 configureProject = ::configureProject,
@@ -67,7 +97,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
 
         val split = JSplitPane(
             JSplitPane.VERTICAL_SPLIT,
-            JBScrollPane(screen),
+            contentTabs,
             JBScrollPane(output),
         ).apply {
             resizeWeight = 0.72
@@ -107,6 +137,41 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         }
     }
 
+    private fun browseFiles() {
+        showStatus("Reading calculator directory…", StatusKind.WORKING)
+        service.readDirectory { result ->
+            onEdt {
+                result.onSuccess { entries ->
+                    directoryModel.rowCount = 0
+                    entries.sortedBy { it.name.lowercase() }.forEach { entry ->
+                        directoryModel.addRow(
+                            arrayOf<Any>(
+                                entry.name,
+                                "${entry.typeName} (${entry.type})",
+                                entry.size,
+                                entry.location,
+                            ),
+                        )
+                    }
+                    contentTabs.selectedComponent = directoryPane
+                    showStatus(
+                        "Connected — ${entries.size} calculator files",
+                        StatusKind.CONNECTED,
+                    )
+                    val ramEntries = entries.filterNot { it.archived }
+                    val archiveEntries = entries.filter { it.archived }
+                    output.text = buildString {
+                        appendLine("Calculator directory")
+                        appendLine("Variables: ${entries.size}")
+                        appendLine("RAM: ${ramEntries.size} variables, ${ramEntries.sumOf { it.size }} bytes")
+                        appendLine("Archive: ${archiveEntries.size} variables, ${archiveEntries.sumOf { it.size }} bytes")
+                        if (entries.isEmpty()) append("No variables were returned by the directory resource.")
+                    }.trimEnd()
+                }.onFailure { showFailure(it) }
+            }
+        }
+    }
+
     private fun captureScreen() {
         showStatus("Capturing calculator screen…", StatusKind.WORKING)
         service.captureScreen { result ->
@@ -125,6 +190,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                     )
                     screen.text = null
                     screen.icon = ImageIcon(scaled)
+                    contentTabs.selectedComponent = screenPane
                     output.text = capture.metadata.entries.joinToString("\n") { (key, value) -> "$key: ${formatValue(value)}" }
                 }.onFailure { showFailure(it) }
             }

@@ -11,6 +11,26 @@ import kotlin.test.assertEquals
  */
 class KermitPacketCodecTest {
     @Test
+    fun `data codec round trips quoted and repeated bytes`() {
+        val payload = byteArrayOf(
+            0x23,
+            0x23,
+            0x23,
+            0x7E,
+            0x7E,
+            0x7E,
+            0x00,
+            0x7F,
+            0xFF.toByte(),
+            'A'.code.toByte(),
+            'A'.code.toByte(),
+            'A'.code.toByte(),
+        )
+
+        assertContentEquals(payload, KermitPacketCodec.decodeData(KermitPacketCodec.encodeData(payload)))
+    }
+
+    @Test
     fun `long F packet round trips`() {
         val session = KermitPacketCodec.Session()
         val data = EvoPythonPayload.transferUrl("TAYEVO").encodeToByteArray()

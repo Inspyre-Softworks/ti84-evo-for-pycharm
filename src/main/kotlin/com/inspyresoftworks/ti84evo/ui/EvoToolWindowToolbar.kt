@@ -12,6 +12,7 @@ import javax.swing.JComponent
 internal data class EvoToolWindowActions(
     val refresh: () -> Unit,
     val readAttributes: () -> Unit,
+    val browseFiles: () -> Unit,
     val captureScreen: () -> Unit,
     val uploadCurrentPython: () -> Unit,
     val configureProject: () -> Unit,
@@ -36,6 +37,12 @@ internal object EvoToolWindowToolbar {
                 "Read system attributes from the connected calculator",
                 AllIcons.Actions.Show,
                 callbacks.readAttributes,
+            ))
+            add(toolbarAction(
+                "Browse calculator files",
+                "List variables in calculator RAM and Archive",
+                AllIcons.Nodes.Folder,
+                callbacks.browseFiles,
             ))
             add(toolbarAction(
                 "Capture screen",

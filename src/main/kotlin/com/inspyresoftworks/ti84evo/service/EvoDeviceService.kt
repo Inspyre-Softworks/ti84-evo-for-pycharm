@@ -2,6 +2,7 @@ package com.inspyresoftworks.ti84evo.service
 
 import com.intellij.openapi.components.Service
 import com.inspyresoftworks.ti84evo.model.EvoScreenCapture
+import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.protocol.EvoLink
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
 import com.inspyresoftworks.ti84evo.transport.EvoSerialTransport
@@ -32,6 +33,10 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
 
     fun readAttributes(callback: (Result<Map<String, Any?>>) -> Unit) {
         runLinkOperation({ it.getAttributes() }, callback)
+    }
+
+    fun readDirectory(callback: (Result<List<EvoDirectoryEntry>>) -> Unit) {
+        runLinkOperation({ it.getDirectory() }, callback)
     }
 
     fun captureScreen(callback: (Result<EvoScreenCapture>) -> Unit) {

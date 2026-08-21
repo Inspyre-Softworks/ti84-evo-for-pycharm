@@ -15,8 +15,17 @@ Open the repository as a Gradle project and run ``runIde``. In the
 development PyCharm instance, open **View → Tool Windows → TI-84 Evo** and
 press **Refresh**. Use **Read Attributes** before attempting a write action.
 
-The tool window supports screen capture, attribute reads, upload of the
-current Python file, and ordered multi-file project pushes.
+The tool window supports screen capture, attribute reads, calculator file
+browsing, upload of the current Python file, and ordered multi-file project
+pushes.
+
+Calculator file browser
+-----------------------
+
+Press **Browse calculator files** to read the calculator directory. The
+sortable table shows each decoded variable name and type together with its
+byte size and RAM or Archive location. This milestone is read-only; download,
+delete, and rename actions remain future work.
 
 Multi-file projects
 -------------------
@@ -37,3 +46,12 @@ documents are included.
 
 The initial upload target is RAM with overwrite enabled. Existing calculator
 programs with the same name may therefore be replaced.
+
+Single-file acceptance
+----------------------
+
+The single-file path was accepted on a physical TI-84 Evo on August 21, 2026:
+a 29-byte Python source was uploaded as ``EVOTEST`` to RAM, the plugin reported
+the completed transfer, and a subsequent directory read returned the new
+type-15 program. Multi-file project push still requires separate physical
+acceptance.

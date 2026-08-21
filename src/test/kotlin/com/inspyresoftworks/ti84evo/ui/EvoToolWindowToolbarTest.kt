@@ -15,6 +15,7 @@ class EvoToolWindowToolbarTest : BasePlatformTestCase() {
             EvoToolWindowActions(
                 refresh = {},
                 readAttributes = {},
+                browseFiles = {},
                 captureScreen = {},
                 uploadCurrentPython = {},
                 configureProject = {},
@@ -30,6 +31,7 @@ class EvoToolWindowToolbarTest : BasePlatformTestCase() {
             setOf(
                 "Refresh devices",
                 "Read attributes",
+                "Browse calculator files",
                 "Capture screen",
                 "Upload current Python file",
                 "Push project",

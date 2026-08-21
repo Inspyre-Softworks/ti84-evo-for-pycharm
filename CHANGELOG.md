@@ -2,6 +2,11 @@
 
 ## 0.2.4-SNAPSHOT
 
+- Add a sortable calculator file browser showing decoded variable names, types, byte sizes, and RAM/Archive locations.
+- Decode Evo custom names, standard token names, list names, and function names from the directory CBOR resource.
+- Decode Kermit control quoting and repeat encoding for dynamic resources whose length is announced as zero.
+- Verify the file browser and single-file Python upload against a physical TI-84 Evo.
+- Move marketplace icons to the supported `META-INF/pluginIcon*.svg` locations and remove invalid descriptor elements.
 - Replace the clipped Swing button row with a native JetBrains icon toolbar that keeps a visible overflow menu at narrow widths.
 - Move connection and operation status onto its own persistent, icon-coded line below the toolbar.
 - Add typed PyCharm import resolution, completion, parameter hints, and quick documentation for the complete TI module family: `ti_draw`, `ti_image`, `ti_system`, `ti_plotlib`, `ti_hub`, and `ti_rover`.

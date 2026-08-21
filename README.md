@@ -8,6 +8,10 @@ This repository is an alpha hardware-integration project. Host-side protocol
 tests and plugin packaging run in GitHub Actions; successful CI does not replace
 acceptance testing on a physical TI-84 Evo.
 
+Single-file Python upload and read-only directory browsing were accepted on a
+physical TI-84 Evo on August 21, 2026. Other write paths and future actions
+still require their own device acceptance.
+
 Documentation is built with Sphinx and configured for Read the Docs. See the
 published documentation for the user guide, protocol overview, and release
 checklist.
@@ -23,7 +27,7 @@ checklist.
 - Decodes the CBOR returned by `sys/attributes`.
 - Reconstructs the solved `sys/screen` resource using the Evo `7E N FF` run encoding.
 - Converts the little-endian RGB565 framebuffer to a Java image.
-- Adds a **TI-84 Evo** PyCharm tool window with Refresh, Read Attributes, Capture Screen, single-file upload, and multi-file project push actions.
+- Adds a **TI-84 Evo** PyCharm tool window with Refresh, Read Attributes, a sortable RAM/Archive file browser, Capture Screen, single-file upload, and multi-file project push actions.
 - Uses a native icon toolbar with tooltips, grouped actions, persistent status, and an explicit overflow menu at narrow tool-window widths.
 - Bundles typed API stubs for the complete `ti_*` module family: `ti_draw`, `ti_image`, `ti_system`, `ti_plotlib`, `ti_hub`, and `ti_rover`.
 - Uploads the active PyCharm `.py` file as an Evo type-15 Python program using the calculator's Kermit variable-transfer endpoint.
@@ -44,7 +48,8 @@ JetBrains' current IntelliJ Platform Gradle Plugin 2.x is used, along with Kotli
 4. In the development PyCharm instance, open **View → Tool Windows → TI-84 Evo**.
 5. Plug in the calculator and press **Refresh**.
 6. Try **Read Attributes** first, then **Capture Screen**.
-7. Open a `.py` file in the editor and press **Upload Current .py**. Confirm the 1–8 character calculator program name; the first version writes to RAM and overwrites an existing program with the same name.
+7. Press **Browse calculator files** to list variable names, types, sizes, and RAM/Archive locations.
+8. Open a `.py` file in the editor and press **Upload Current .py**. Confirm the 1–8 character calculator program name; the first version writes to RAM and overwrites an existing program with the same name.
 
 ### Push a multi-file project
 
@@ -77,6 +82,11 @@ $env:JAVA_HOME = "C:\Program Files\Java\jdk-25.0.4.1"
 .\gradlew.bat test --no-daemon
 .\gradlew.bat buildPlugin --no-daemon
 ```
+
+On Windows, if the checkout is inside OneDrive, generated Gradle output is
+automatically redirected to `%LOCALAPPDATA%\ti84-evo-for-pycharm\build` so
+OneDrive cannot replace compiler directories with cloud placeholders. Set
+`TI84_EVO_BUILD_DIR` or pass `-Pti84EvoBuildDir=...` to choose another location.
 
 ## Architecture
 
@@ -147,8 +157,6 @@ key = ti_system.wait_key()
 
 ## Next milestone
 
-1. prove **Upload Current .py** on the physical calculator;
-2. add a calculator file browser backed by the directory resource;
-3. expose RAM vs Archive target selection;
-4. add download/delete/rename actions;
-5. add a real **TI-84 Evo** run configuration that pushes and launches the selected Python project.
+1. expose RAM vs Archive target selection;
+2. add download/delete/rename actions;
+3. add a real **TI-84 Evo** run configuration that pushes and launches the selected Python project.

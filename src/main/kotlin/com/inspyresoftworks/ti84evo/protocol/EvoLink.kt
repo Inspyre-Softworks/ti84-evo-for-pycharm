@@ -1,6 +1,7 @@
 package com.inspyresoftworks.ti84evo.protocol
 
 import com.inspyresoftworks.ti84evo.model.EvoScreenCapture
+import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.transport.EvoTransport
 
 /**
@@ -24,6 +25,10 @@ class EvoLink(transport: EvoTransport) {
     }
 
     fun getAttributes(): Map<String, Any?> = decodeStringMap(getResource("hh01/sys/attributes"))
+
+    fun getDirectory(): List<EvoDirectoryEntry> = EvoDirectoryCodec.decode(
+        getResource("hh01/inf/res?name=directory&gotohome=1"),
+    )
 
     fun getScreenCapture(): EvoScreenCapture {
         val screen = decodeStringMap(getResource("hh01/sys/screen"))

@@ -162,6 +162,40 @@ object KermitPacketCodec {
     /** Encode a binary payload into Kermit's quoted/repeated data stream. */
     fun encodeData(payload: ByteArray): ByteArray = concat(*encodeElements(payload).toTypedArray())
 
+    /** Decode Kermit's default control quoting and repeat encoding. */
+    fun decodeData(encoded: ByteArray): ByteArray {
+        val output = ByteArrayOutputStream(encoded.size)
+        var index = 0
+
+        while (index < encoded.size) {
+            var count = 1
+            if (u(encoded[index]) == REPEAT_QUOTE) {
+                if (index + 2 >= encoded.size) {
+                    throw EvoProtocolException("truncated Kermit repeat sequence")
+                }
+                count = unchar(u(encoded[index + 1]))
+                if (count !in 1..94) {
+                    throw EvoProtocolException("invalid Kermit repeat count $count")
+                }
+                index += 2
+            }
+
+            var value = u(encoded[index])
+            if (value == CONTROL_QUOTE) {
+                if (index + 1 >= encoded.size) {
+                    throw EvoProtocolException("truncated Kermit control quote")
+                }
+                value = uncontrol(u(encoded[index + 1]))
+                index += 2
+            } else {
+                index += 1
+            }
+            repeat(count) { output.write(value) }
+        }
+
+        return output.toByteArray()
+    }
+
     /**
      * Split encoded payload without cutting a quote or repeat element between D packets.
      */
@@ -276,6 +310,8 @@ object KermitPacketCodec {
 
     private fun tochar(value: Int): Int = value + 0x20
     private fun unchar(value: Int): Int = value - 0x20
+    private fun uncontrol(value: Int): Int =
+        if ((value and 0x7F) == 0x3F || (value and 0x60) == 0x40) value xor 0x40 else value
     private fun u(value: Byte): Int = value.toInt() and 0xFF
 
     internal fun concat(vararg arrays: ByteArray): ByteArray {

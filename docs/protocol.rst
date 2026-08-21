@@ -23,7 +23,12 @@ The read-only resource path uses the observed ``S → F → A → D → Z → B`
 transaction ladder. It supports resource requests such as
 ``hh01/get/sys/attributes`` and ``hh01/get/sys/screen``. Screen data is
 decoded from the Evo run encoding and converted from little-endian RGB565 to
-a Java image.
+a Java image. The file browser reads
+``hh01/get/hh01/inf/res?name=directory&gotohome=1`` and decodes the returned
+CBOR entries, including Evo tokenized variable names and memory locations.
+Directory transfers use a zero length as an unknown-size sentinel and apply
+Kermit control quoting and repeat encoding across their D frames; the reader
+decodes the complete wire stream before parsing CBOR.
 
 Python upload path
 ------------------
