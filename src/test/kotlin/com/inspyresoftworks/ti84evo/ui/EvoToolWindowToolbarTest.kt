@@ -20,6 +20,7 @@ class EvoToolWindowToolbarTest : BasePlatformTestCase() {
                 uploadCurrentPython = {},
                 configureProject = {},
                 pushProject = {},
+                showAbout = {},
             ),
         )
 
@@ -36,6 +37,7 @@ class EvoToolWindowToolbarTest : BasePlatformTestCase() {
                 "Upload current Python file",
                 "Push project",
                 "Configure project",
+                "About TI-84 Evo",
             ),
             actions.mapTo(mutableSetOf()) { it.templatePresentation.text },
         )

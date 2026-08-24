@@ -1,6 +1,12 @@
 # TI-84 Evo for PyCharm
 
-Project identifier: `ti84-evo-for-pycharm`
+The project version is defined once in [`VERSION`](VERSION). Gradle uses it for
+plugin packaging and generated plugin metadata; the documentation reads the
+same file.
+
+JetBrains plugin ID: `com.inspyresoftworks.ti84evo`
+
+Repository and Gradle project name: `ti84-evo-for-pycharm`
 
 Native Kotlin IntelliJ Platform plugin for talking directly to the TI-84 Evo over its CDC serial interface.
 
@@ -24,11 +30,12 @@ checklist.
 - Opens the Evo CDC port directly from the JVM with jSerialComm.
 - Implements the solved Evo short/extended frame codec, checksum, D-frame escaping, printable sequence numbers, and the confirmed `S → F → A → D → Z → B` transaction ladder.
 - Performs resource GETs using the observed `hh01/get/...` request form.
-- Decodes the CBOR returned by `sys/attributes`.
+- Decodes the CBOR returned by `sys/attributes` and presents it in a grouped details dialog with Markdown copy support.
 - Reconstructs the solved `sys/screen` resource using the Evo `7E N FF` run encoding.
 - Converts the little-endian RGB565 framebuffer to a Java image.
 - Adds a **TI-84 Evo** PyCharm tool window with Refresh, Read Attributes, a sortable RAM/Archive file browser, Capture Screen, single-file upload, and multi-file project push actions.
 - Uses a native icon toolbar with tooltips, grouped actions, persistent status, and an explicit overflow menu at narrow tool-window widths.
+- Packages dedicated 40×40 light and dark SVG logos for the IDE plugin manager and JetBrains Marketplace.
 - Bundles typed API stubs for the complete `ti_*` module family: `ti_draw`, `ti_image`, `ti_system`, `ti_plotlib`, `ti_hub`, and `ti_rover`.
 - Uploads the active PyCharm `.py` file as an Evo type-15 Python program using the calculator's Kermit variable-transfer endpoint.
 - Packages source into the Evo Python AppVar + CBOR representation before transfer; it does not send loose desktop text as though the calculator had a normal filesystem.

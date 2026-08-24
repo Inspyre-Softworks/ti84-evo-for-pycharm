@@ -12,26 +12,27 @@ import com.inspyresoftworks.ti84evo.transport.EvoTransport
 class EvoLink(transport: EvoTransport) {
     private val transactions = EvoTransactionEngine(transport)
 
-    private fun normalizeResource(uri: String): String {
-        val clean = uri.trim('/')
-        return if (clean.startsWith("hh01/")) clean else "hh01/$clean"
-    }
-
     fun getResource(uri: String): ByteArray {
-        val resource = normalizeResource(uri)
-        val request = "hh01/get/$resource".encodeToByteArray()
-        transactions.sendSmallTransaction(request, byteArrayOf('h'.code.toByte()))
-        return transactions.receiveTransaction().second
+        val request = buildGetRequest(uri)
+        return try {
+            transactions.sendSmallTransaction(request, byteArrayOf('h'.code.toByte()))
+            transactions.receiveTransaction().second
+        } catch (error: EvoProtocolException) {
+            throw EvoProtocolException(
+                "resource request ${request.decodeToString()} failed: ${error.message}",
+                error,
+            )
+        }
     }
 
-    fun getAttributes(): Map<String, Any?> = decodeStringMap(getResource("hh01/sys/attributes"))
+    fun getAttributes(): Map<String, Any?> = decodeStringMap(getResource("sys/attributes"))
 
     fun getDirectory(): List<EvoDirectoryEntry> = EvoDirectoryCodec.decode(
         getResource("hh01/inf/res?name=directory&gotohome=1"),
     )
 
     fun getScreenCapture(): EvoScreenCapture {
-        val screen = decodeStringMap(getResource("hh01/sys/screen"))
+        val screen = decodeStringMap(getResource("sys/screen"))
         val width = screen.requireInt("width")
         val height = screen.requireInt("height")
         val bpp = screen.requireInt("bpp")
@@ -60,4 +61,10 @@ class EvoLink(transport: EvoTransport) {
         val number = this[key] as? Number ?: throw EvoProtocolException("missing or non-numeric $key")
         return number.toInt()
     }
+}
+
+internal fun buildGetRequest(uri: String): ByteArray {
+    val clean = uri.trim('/')
+    val resource = if (clean.startsWith("hh01/")) clean else "hh01/$clean"
+    return "hh01/get/$resource".encodeToByteArray()
 }

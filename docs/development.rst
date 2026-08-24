@@ -18,7 +18,7 @@ is uploaded as a workflow artifact for pull requests and branch pushes.
 Release checklist
 -----------------
 
-1. Update the version in ``build.gradle.kts``.
+1. Update the version in ``VERSION``.
 2. Move the corresponding entry from the snapshot section of
    ``CHANGELOG.md`` into a dated release section.
 3. Run the test and ``buildPlugin`` tasks.

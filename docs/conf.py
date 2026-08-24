@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT))
 project = "TI-84 Evo for PyCharm"
 copyright = "2026, Inspyre-Softworks"
 author = "Inspyre-Softworks"
-release = "0.2.4-SNAPSHOT"
+release = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 extensions = ["sphinx.ext.napoleon"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

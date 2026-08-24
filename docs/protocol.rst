@@ -21,7 +21,7 @@ Read path
 
 The read-only resource path uses the observed ``S → F → A → D → Z → B``
 transaction ladder. It supports resource requests such as
-``hh01/get/sys/attributes`` and ``hh01/get/sys/screen``. Screen data is
+``hh01/get/hh01/sys/attributes`` and ``hh01/get/hh01/sys/screen``. Screen data is
 decoded from the Evo run encoding and converted from little-endian RGB565 to
 a Java image. The file browser reads
 ``hh01/get/hh01/inf/res?name=directory&gotohome=1`` and decodes the returned

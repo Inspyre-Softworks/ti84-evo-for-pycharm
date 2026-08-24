@@ -4,6 +4,8 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.extensions.PluginId
+import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
@@ -37,8 +39,21 @@ import javax.swing.table.DefaultTableModel
  * Author: Taylor B. | Inspyre-Softworks.
  */
 class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) {
+    private companion object {
+        const val PLUGIN_ID = "com.inspyresoftworks.ti84evo"
+    }
+
     private val service = project.getService(EvoDeviceService::class.java)
+    private val installedPluginVersion =
+        PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))?.version ?: "unknown"
     private val status = JBLabel("Not checked", AllIcons.General.Information, JBLabel.LEADING)
+    private val version = JBLabel(
+        "v$installedPluginVersion",
+        JBLabel.TRAILING,
+    ).apply {
+        toolTipText = "Installed TI-84 Evo plugin version"
+        foreground = com.intellij.ui.JBColor.GRAY
+    }
     private val output = JBTextArea().apply {
         isEditable = false
         lineWrap = false
@@ -86,6 +101,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                 uploadCurrentPython = ::uploadCurrentPython,
                 configureProject = ::configureProject,
                 pushProject = ::pushProject,
+                showAbout = ::showAbout,
             ),
         )
         val header = JPanel(BorderLayout()).apply {
@@ -105,6 +121,14 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
 
         add(header, BorderLayout.NORTH)
         add(split, BorderLayout.CENTER)
+        add(
+            JPanel(BorderLayout()).apply {
+                isOpaque = false
+                border = JBUI.Borders.empty(3, 4, 0, 4)
+                add(version, BorderLayout.EAST)
+            },
+            BorderLayout.SOUTH,
+        )
         refresh()
     }
 
@@ -131,7 +155,8 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             onEdt {
                 result.onSuccess { attributes ->
                     showStatus("Connected — attributes received", StatusKind.CONNECTED)
-                    output.text = attributes.entries.joinToString("\n") { (key, value) -> "$key: ${formatValue(value)}" }
+                    output.text = EvoAttributePresentation.toMarkdown(attributes)
+                    EvoAttributesDialog(project, attributes).show()
                 }.onFailure { showFailure(it) }
             }
         }
@@ -389,6 +414,21 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             return null
         }
         return Path.of(basePath).toAbsolutePath().normalize()
+    }
+
+    internal fun showAbout() {
+        val buildType = if (installedPluginVersion.endsWith("-SNAPSHOT")) "Development snapshot" else "Release"
+        Messages.showInfoMessage(
+            project,
+            buildString {
+                appendLine("TI-84 Evo for PyCharm")
+                appendLine()
+                appendLine("Version: $installedPluginVersion")
+                appendLine("Build: $buildType")
+                append("Plugin ID: $PLUGIN_ID")
+            },
+            "About TI-84 Evo",
+        )
     }
 
     private fun showFailure(error: Throwable) {

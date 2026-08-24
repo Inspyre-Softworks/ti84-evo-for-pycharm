@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.6-SNAPSHOT
+
+- Normalize system resources into the calculator's nested ``hh01`` namespace.
+- Preserve calculator `E`-frame payloads and include the failed resource URI in diagnostics.
+- Present calculator attributes in a grouped details dialog with friendly labels, formatted memory and state values, and a Markdown copy action.
+- Replace the marketplace logo with compact light and dark SVG artwork adapted from the TI-84 Evo calculator-and-cable design.
+- Lock the pre-publication Marketplace plugin ID to ``com.inspyresoftworks.ti84evo`` and rely on the IntelliJ Platform's bundled Kotlin standard library.
+
+## 0.2.5-SNAPSHOT
+
+- Show the installed plugin version in the tool-window footer and About dialog.
+- Add the root `VERSION` file as the canonical version source for builds, plugin metadata, and documentation.
+
 ## 0.2.4-SNAPSHOT
 
 - Add a sortable calculator file browser showing decoded variable names, types, byte sizes, and RAM/Archive locations.

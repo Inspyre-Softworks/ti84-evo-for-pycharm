@@ -19,6 +19,15 @@ The tool window supports screen capture, attribute reads, calculator file
 browsing, upload of the current Python file, and ordered multi-file project
 pushes.
 
+Calculator attributes
+---------------------
+
+Press **Read Attributes** to open a grouped device-details dialog. Protocol
+keys are translated into friendly labels, byte counts are shown in readable
+units, and power and certificate states are explained. Press **Copy
+Attributes** to place a Markdown report on the clipboard; the report includes
+both the formatted details and the original protocol key/value pairs.
+
 Calculator file browser
 -----------------------
 
