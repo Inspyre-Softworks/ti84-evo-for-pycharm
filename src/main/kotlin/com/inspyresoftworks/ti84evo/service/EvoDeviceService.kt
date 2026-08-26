@@ -43,6 +43,13 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
         runLinkOperation({ it.getScreenCapture() }, callback)
     }
 
+    fun deleteVariables(
+        entries: List<EvoDirectoryEntry>,
+        callback: (Result<List<EvoDirectoryEntry>>) -> Unit,
+    ) {
+        runLinkOperation({ it.deleteVariables(entries) }, callback)
+    }
+
     fun uploadPython(
         source: String,
         programName: String,

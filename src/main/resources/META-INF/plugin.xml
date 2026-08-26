@@ -1,5 +1,5 @@
 <idea-plugin>
-    <id>com.inspyresoftworks.ti84evo.pycharm</id>
+    <id>com.inspyresoftworks.ti84evo</id>
     <name>TI-84 Evo</name>
     <vendor>Inspyre-Softworks</vendor>
 

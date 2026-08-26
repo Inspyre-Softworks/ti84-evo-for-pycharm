@@ -131,7 +131,7 @@ class TiPythonImportResolverTest : BasePlatformTestCase() {
 
     private fun registerModuleCompletionContributor() {
         val pluginDescriptor = DefaultPluginDescriptor(
-            PluginId.getId("com.inspyresoftworks.ti84evo.pycharm.test"),
+            PluginId.getId("com.inspyresoftworks.ti84evo.test"),
             TiPythonModuleCompletionContributor::class.java.classLoader,
         )
         val extension = CompletionContributorEP(

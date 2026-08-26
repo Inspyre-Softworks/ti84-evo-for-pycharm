@@ -1,6 +1,7 @@
 package com.inspyresoftworks.ti84evo.protocol
 
 import com.inspyresoftworks.ti84evo.transport.EvoTransport
+import java.nio.charset.StandardCharsets
 
 /**
  * Confirmed S/F/A/D/Z/B Evo transaction ladder.
@@ -35,13 +36,28 @@ class EvoTransactionEngine(private val transport: EvoTransport) {
         writeFrame(frame)
         val ack = readFrame()
         if (ack.command != EvoFrameCodec.CMD_Y) {
-            throw EvoUnexpectedFrameException("expected Y ack for ${frame.commandText}, got ${ack.commandText}")
+            val message = if (ack.command == 'E'.code) {
+                "expected Y ack for ${frame.commandText}, got ${ack.commandText}: ${formatErrorPayload(ack.payload)}"
+            } else {
+                "expected Y ack for ${frame.commandText}, got ${ack.commandText}"
+            }
+            throw EvoUnexpectedFrameException(message)
         }
         if (ack.sequence != frame.sequence) {
             throw EvoUnexpectedFrameException("ack sequence mismatch for ${frame.commandText}")
         }
         if (!ack.payload.contentEquals(expectedAckPayload(frame))) {
             throw EvoUnexpectedFrameException("unexpected Y payload for ${frame.commandText}")
+        }
+    }
+
+    private fun formatErrorPayload(payload: ByteArray): String {
+        if (payload.isEmpty()) return "calculator returned an empty error payload"
+        val text = payload.toString(StandardCharsets.UTF_8)
+        return if (text.all { !it.isISOControl() }) {
+            "calculator error ${text.trim()}"
+        } else {
+            "calculator error bytes ${payload.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }}"
         }
     }
 

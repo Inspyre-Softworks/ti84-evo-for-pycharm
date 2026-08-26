@@ -17,6 +17,7 @@ internal data class EvoToolWindowActions(
     val uploadCurrentPython: () -> Unit,
     val configureProject: () -> Unit,
     val pushProject: () -> Unit,
+    val showAbout: () -> Unit,
 )
 
 /** Builds a native IDE toolbar with a visible overflow affordance. */
@@ -69,6 +70,12 @@ internal object EvoToolWindowToolbar {
                 "Choose the Python files included in the calculator project",
                 AllIcons.General.Settings,
                 callbacks.configureProject,
+            ))
+            add(toolbarAction(
+                "About TI-84 Evo",
+                "Show the installed plugin version and build information",
+                AllIcons.General.Information,
+                callbacks.showAbout,
             ))
         }
 

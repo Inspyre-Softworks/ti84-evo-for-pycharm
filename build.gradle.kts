@@ -1,3 +1,4 @@
+import org.jetbrains.intellij.platform.gradle.tasks.BuildPluginTask
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
@@ -6,7 +7,16 @@ plugins {
 }
 
 group = "com.inspyresoftworks"
-version = "0.2.4-SNAPSHOT"
+val canonicalVersion = providers.fileContents(layout.projectDirectory.file("VERSION"))
+    .asText
+    .map(String::trim)
+    .get()
+require(canonicalVersion.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?"))) {
+    "VERSION must contain a semantic version, got: $canonicalVersion"
+}
+version = canonicalVersion
+val pluginDistributionDirectory = layout.buildDirectory.dir("distributions")
+val currentPluginZipName = "${rootProject.name}-${project.version}.zip"
 
 // OneDrive can turn generated directories into cloud placeholders while Gradle
 // is replacing them. Keep generated output local for this specific checkout
@@ -26,6 +36,17 @@ if (!configuredBuildDirectory.isNullOrBlank()) {
     }
 }
 
+val cleanStalePluginZips = tasks.register("cleanStalePluginZips") {
+    doLast {
+        delete(
+            fileTree(pluginDistributionDirectory.get().asFile) {
+                include("${rootProject.name}-*.zip")
+                exclude(currentPluginZipName)
+            }
+        )
+    }
+}
+
 repositories {
     mavenCentral()
     intellijPlatform {
@@ -34,6 +55,7 @@ repositories {
 }
 
 dependencies {
+    implementation(kotlin("stdlib"))
     implementation("com.fazecast:jSerialComm:2.11.4")
 
     intellijPlatform {
@@ -56,7 +78,7 @@ intellijPlatform {
     sandboxContainer.set(layout.buildDirectory.dir("idea-sandbox-${project.version}"))
 
     pluginConfiguration {
-        id = "com.inspyresoftworks.ti84evo.pycharm"
+        id = "com.inspyresoftworks.ti84evo"
         name = "TI-84 Evo"
         version = project.version.toString()
 
@@ -75,5 +97,11 @@ intellijPlatform {
 tasks {
     test {
         useJUnitPlatform()
+    }
+
+    named<BuildPluginTask>("buildPlugin") {
+        dependsOn(cleanStalePluginZips)
+        destinationDirectory.set(pluginDistributionDirectory)
+        archiveFileName.set(currentPluginZipName)
     }
 }

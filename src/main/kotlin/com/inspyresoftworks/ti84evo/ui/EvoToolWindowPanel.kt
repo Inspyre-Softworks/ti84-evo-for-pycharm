@@ -4,6 +4,8 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.extensions.PluginId
+import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
@@ -14,17 +16,21 @@ import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
+import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonPayload
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
+import com.inspyresoftworks.ti84evo.protocol.EvoVariableDeleteException
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
 import com.inspyresoftworks.ti84evo.service.EvoDeviceService
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.Image
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.ImageIcon
+import javax.swing.JButton
 import javax.swing.JFileChooser
 import javax.swing.JPanel
 import javax.swing.JSplitPane
@@ -37,8 +43,21 @@ import javax.swing.table.DefaultTableModel
  * Author: Taylor B. | Inspyre-Softworks.
  */
 class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) {
+    private companion object {
+        const val PLUGIN_ID = "com.inspyresoftworks.ti84evo"
+    }
+
     private val service = project.getService(EvoDeviceService::class.java)
+    private val installedPluginVersion =
+        PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))?.version ?: "unknown"
     private val status = JBLabel("Not checked", AllIcons.General.Information, JBLabel.LEADING)
+    private val version = JBLabel(
+        "v$installedPluginVersion",
+        JBLabel.TRAILING,
+    ).apply {
+        toolTipText = "Installed TI-84 Evo plugin version"
+        foreground = com.intellij.ui.JBColor.GRAY
+    }
     private val output = JBTextArea().apply {
         isEditable = false
         lineWrap = false
@@ -66,15 +85,36 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         columnModel.getColumn(2).preferredWidth = 90
         columnModel.getColumn(3).preferredWidth = 80
     }
+    private val directoryEntries = mutableListOf<EvoDirectoryEntry>()
+    private var deletionInProgress = false
+    private val deleteSelectedButton = JButton("Delete selected", AllIcons.General.Remove).apply {
+        isEnabled = false
+        toolTipText = "Delete the selected calculator files after confirmation"
+        addActionListener { deleteSelectedFiles() }
+    }
     private val screenPane = JBScrollPane(screen)
     private val directoryPane = JBScrollPane(directoryTable)
+    private val directoryContent = JPanel(BorderLayout()).apply {
+        isOpaque = false
+        add(directoryPane, BorderLayout.CENTER)
+        add(
+            JPanel(FlowLayout(FlowLayout.LEFT, 0, 4)).apply {
+                isOpaque = false
+                add(deleteSelectedButton)
+            },
+            BorderLayout.SOUTH,
+        )
+    }
     private val contentTabs = JBTabbedPane().apply {
         addTab("Screen", screenPane)
-        addTab("Calculator Files", directoryPane)
+        addTab("Calculator Files", directoryContent)
     }
 
     init {
         border = JBUI.Borders.empty(8)
+        directoryTable.selectionModel.addListSelectionListener {
+            updateDeleteSelectedButtonState()
+        }
 
         val toolbar = EvoToolWindowToolbar.create(
             this,
@@ -86,6 +126,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                 uploadCurrentPython = ::uploadCurrentPython,
                 configureProject = ::configureProject,
                 pushProject = ::pushProject,
+                showAbout = ::showAbout,
             ),
         )
         val header = JPanel(BorderLayout()).apply {
@@ -105,6 +146,14 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
 
         add(header, BorderLayout.NORTH)
         add(split, BorderLayout.CENTER)
+        add(
+            JPanel(BorderLayout()).apply {
+                isOpaque = false
+                border = JBUI.Borders.empty(3, 4, 0, 4)
+                add(version, BorderLayout.EAST)
+            },
+            BorderLayout.SOUTH,
+        )
         refresh()
     }
 
@@ -131,7 +180,8 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             onEdt {
                 result.onSuccess { attributes ->
                     showStatus("Connected — attributes received", StatusKind.CONNECTED)
-                    output.text = attributes.entries.joinToString("\n") { (key, value) -> "$key: ${formatValue(value)}" }
+                    output.text = EvoAttributePresentation.toMarkdown(attributes)
+                    EvoAttributesDialog(project, attributes).show()
                 }.onFailure { showFailure(it) }
             }
         }
@@ -143,7 +193,9 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             onEdt {
                 result.onSuccess { entries ->
                     directoryModel.rowCount = 0
-                    entries.sortedBy { it.name.lowercase() }.forEach { entry ->
+                    directoryEntries.clear()
+                    directoryEntries += entries.sortedBy { it.name.lowercase() }
+                    directoryEntries.forEach { entry ->
                         directoryModel.addRow(
                             arrayOf<Any>(
                                 entry.name,
@@ -153,7 +205,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                             ),
                         )
                     }
-                    contentTabs.selectedComponent = directoryPane
+                    contentTabs.selectedComponent = directoryContent
                     showStatus(
                         "Connected — ${entries.size} calculator files",
                         StatusKind.CONNECTED,
@@ -167,6 +219,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         appendLine("Archive: ${archiveEntries.size} variables, ${archiveEntries.sumOf { it.size }} bytes")
                         if (entries.isEmpty()) append("No variables were returned by the directory resource.")
                     }.trimEnd()
+                    updateDeleteSelectedButtonState()
                 }.onFailure { showFailure(it) }
             }
         }
@@ -195,6 +248,103 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                 }.onFailure { showFailure(it) }
             }
         }
+    }
+
+    private fun deleteSelectedFiles() {
+        if (deletionInProgress) return
+        val selectedEntries = directoryTable.selectedRows
+            .map(directoryTable::convertRowIndexToModel)
+            .distinct()
+            .sorted()
+            .map(directoryEntries::get)
+        if (selectedEntries.isEmpty()) return
+
+        val answer = Messages.showYesNoDialog(
+            project,
+            buildString {
+                appendLine(
+                    if (selectedEntries.size == 1) {
+                        "Delete ${selectedEntries.single().name} from the calculator?"
+                    } else {
+                        "Delete ${selectedEntries.size} selected files from the calculator?"
+                    },
+                )
+                appendLine()
+                selectedEntries.take(10).forEach { entry ->
+                    appendLine("• ${entry.name} (${entry.typeName}, ${entry.location})")
+                }
+                if (selectedEntries.size > 10) {
+                    appendLine("• …and ${selectedEntries.size - 10} more")
+                }
+                appendLine()
+                append("This cannot be undone.")
+            },
+            "Delete Calculator Files",
+            Messages.getWarningIcon(),
+        )
+        if (answer != Messages.YES) return
+
+        deletionInProgress = true
+        updateDeleteSelectedButtonState()
+        showStatus("Deleting ${selectedEntries.size} calculator file(s)…", StatusKind.WORKING)
+        output.text = "Deleting ${selectedEntries.joinToString { it.name }}…"
+        service.deleteVariables(selectedEntries) { result ->
+            onEdt {
+                try {
+                    result.onSuccess { deletedEntries ->
+                        removeDirectoryEntries(deletedEntries)
+                        showStatus("Deleted ${deletedEntries.size} calculator file(s)", StatusKind.CONNECTED)
+                        output.text = buildString {
+                            appendLine("Delete successful")
+                            deletedEntries.forEach {
+                                appendLine("• ${it.name} (${it.typeName}, ${it.size} bytes, ${it.location})")
+                            }
+                        }
+                    }.onFailure { error ->
+                        if (error is EvoVariableDeleteException) {
+                            removeDirectoryEntries(error.deletedEntries)
+                        }
+                        showFailure(error)
+                    }
+                } finally {
+                    deletionInProgress = false
+                    updateDeleteSelectedButtonState()
+                }
+            }
+        }
+    }
+
+    private fun removeDirectoryEntries(entries: List<EvoDirectoryEntry>) {
+        val remainingByIdentity = mutableMapOf<String, Int>()
+        entries.forEach { entry ->
+            val identity = entryIdentity(entry)
+            remainingByIdentity[identity] = (remainingByIdentity[identity] ?: 0) + 1
+        }
+
+        for (modelRow in directoryEntries.lastIndex downTo 0) {
+            val identity = entryIdentity(directoryEntries[modelRow])
+            val remaining = remainingByIdentity[identity] ?: 0
+            if (remaining > 0) {
+                directoryEntries.removeAt(modelRow)
+                directoryModel.removeRow(modelRow)
+                if (remaining == 1) {
+                    remainingByIdentity.remove(identity)
+                } else {
+                    remainingByIdentity[identity] = remaining - 1
+                }
+            }
+        }
+        updateDeleteSelectedButtonState()
+    }
+
+    private fun entryIdentity(entry: EvoDirectoryEntry): String =
+        "${entry.type}:${entry.tokenName.joinToString(separator = ",") { byte -> "%02X".format(byte.toInt() and 0xFF) }}"
+
+    private fun updateDeleteSelectedButtonState() {
+        deleteSelectedButton.isEnabled =
+            !deletionInProgress &&
+                directoryEntries.isNotEmpty() &&
+                directoryTable.selectedRowCount > 0
     }
 
     private fun uploadCurrentPython() {
@@ -391,19 +541,46 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         return Path.of(basePath).toAbsolutePath().normalize()
     }
 
+    internal fun showAbout() {
+        val buildType = if (installedPluginVersion.endsWith("-SNAPSHOT")) "Development snapshot" else "Release"
+        Messages.showInfoMessage(
+            project,
+            buildString {
+                appendLine("TI-84 Evo for PyCharm")
+                appendLine()
+                appendLine("Version: $installedPluginVersion")
+                appendLine("Build: $buildType")
+                append("Plugin ID: $PLUGIN_ID")
+            },
+            "About TI-84 Evo",
+        )
+    }
+
     private fun showFailure(error: Throwable) {
         showStatus("Operation failed", StatusKind.ERROR)
-        output.text = if (error is EvoPythonTransfer.ProjectUploadException) {
-            buildString {
-                appendLine(error.message)
-                if (error.completedUploads.isNotEmpty()) {
-                    appendLine("Already uploaded: ${error.completedUploads.joinToString { it.programName }}")
+        output.text = when (error) {
+            is EvoPythonTransfer.ProjectUploadException -> {
+                buildString {
+                    appendLine(error.message)
+                    if (error.completedUploads.isNotEmpty()) {
+                        appendLine("Already uploaded: ${error.completedUploads.joinToString { it.programName }}")
+                    }
+                    appendLine()
+                    append(error.cause?.stackTraceToString() ?: error.stackTraceToString())
                 }
-                appendLine()
-                append(error.cause?.stackTraceToString() ?: error.stackTraceToString())
             }
-        } else {
-            error.stackTraceToString()
+            is EvoVariableDeleteException -> {
+                buildString {
+                    appendLine(error.message)
+                    if (error.deletedEntries.isNotEmpty()) {
+                        appendLine("Already deleted: ${error.deletedEntries.joinToString { it.name }}")
+                    }
+                    appendLine("Failed variable: ${error.failedEntry.name}")
+                    appendLine()
+                    append(error.cause?.stackTraceToString() ?: error.stackTraceToString())
+                }
+            }
+            else -> error.stackTraceToString()
         }
     }
 

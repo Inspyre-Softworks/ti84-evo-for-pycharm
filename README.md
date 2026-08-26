@@ -1,6 +1,12 @@
 # TI-84 Evo for PyCharm
 
-Project identifier: `ti84-evo-for-pycharm`
+The project version is defined once in [`VERSION`](VERSION). Gradle uses it for
+plugin packaging and generated plugin metadata; the documentation reads the
+same file.
+
+JetBrains plugin ID: `com.inspyresoftworks.ti84evo`
+
+Repository and Gradle project name: `ti84-evo-for-pycharm`
 
 Native Kotlin IntelliJ Platform plugin for talking directly to the TI-84 Evo over its CDC serial interface.
 
@@ -12,9 +18,13 @@ Single-file Python upload and read-only directory browsing were accepted on a
 physical TI-84 Evo on August 21, 2026. Other write paths and future actions
 still require their own device acceptance.
 
-Documentation is built with Sphinx and configured for Read the Docs. See the
-published documentation for the user guide, protocol overview, and release
-checklist.
+Documentation is built with Sphinx and published on
+[Read the Docs](https://ti84-evo-for-pycharm.readthedocs.io/en/latest/). The
+published site includes the user guide, protocol overview, glossary, and
+development/release checklist. The documentation source is in [`docs/`](docs/). The
+[source code](https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm) and
+[issue tracker](https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm/issues)
+are on GitHub.
 
 **Author:** Taylor B. | Inspyre-Softworks.
 
@@ -24,11 +34,14 @@ checklist.
 - Opens the Evo CDC port directly from the JVM with jSerialComm.
 - Implements the solved Evo short/extended frame codec, checksum, D-frame escaping, printable sequence numbers, and the confirmed `S → F → A → D → Z → B` transaction ladder.
 - Performs resource GETs using the observed `hh01/get/...` request form.
-- Decodes the CBOR returned by `sys/attributes`.
+- Decodes the CBOR returned by `sys/attributes` and presents it in a grouped details dialog with Markdown copy support.
 - Reconstructs the solved `sys/screen` resource using the Evo `7E N FF` run encoding.
 - Converts the little-endian RGB565 framebuffer to a Java image.
-- Adds a **TI-84 Evo** PyCharm tool window with Refresh, Read Attributes, a sortable RAM/Archive file browser, Capture Screen, single-file upload, and multi-file project push actions.
+- Adds a **TI-84 Evo** PyCharm tool window with Refresh devices, Read attributes,
+  a sortable RAM/Archive file browser with confirmation-protected selected-file
+  deletion, Capture screen, single-file upload, and multi-file project push actions.
 - Uses a native icon toolbar with tooltips, grouped actions, persistent status, and an explicit overflow menu at narrow tool-window widths.
+- Packages dedicated 40×40 light and dark SVG logos for the IDE plugin manager and JetBrains Marketplace.
 - Bundles typed API stubs for the complete `ti_*` module family: `ti_draw`, `ti_image`, `ti_system`, `ti_plotlib`, `ti_hub`, and `ti_rover`.
 - Uploads the active PyCharm `.py` file as an Evo type-15 Python program using the calculator's Kermit variable-transfer endpoint.
 - Packages source into the Evo Python AppVar + CBOR representation before transfer; it does not send loose desktop text as though the calculator had a normal filesystem.
@@ -36,27 +49,37 @@ checklist.
 
 ## Target
 
-This scaffold targets **PyCharm 2026.2.1** and therefore uses a **Java 25** toolchain.
+The development sandbox targets **PyCharm 2026.2.1**, and the Gradle build uses
+a **Java 25** toolchain.
 
-JetBrains' current IntelliJ Platform Gradle Plugin 2.x is used, along with Kotlin 2.4.10.
+The build uses the IntelliJ Platform Gradle Plugin 2.18.1, Kotlin 2.4.10, and
+the included Gradle 9.6.0 wrapper.
 
-## Run it
+## Run from source
 
-1. Open this directory as a Gradle project in IntelliJ IDEA or PyCharm with plugin-development support.
-2. Make sure a JDK 25 toolchain is available.
-3. Run the Gradle `runIde` task.
-4. In the development PyCharm instance, open **View → Tool Windows → TI-84 Evo**.
-5. Plug in the calculator and press **Refresh**.
-6. Try **Read Attributes** first, then **Capture Screen**.
-7. Press **Browse calculator files** to list variable names, types, sizes, and RAM/Archive locations.
-8. Open a `.py` file in the editor and press **Upload Current .py**. Confirm the 1–8 character calculator program name; the first version writes to RAM and overwrites an existing program with the same name.
+1. Install JDK 25 and make it available through `JAVA_HOME` or on `PATH`.
+2. From the repository root, run `.\gradlew.bat runIde` on Windows or
+   `./gradlew runIde` on macOS/Linux. The wrapper downloads the configured
+   Gradle and PyCharm versions; a separate Gradle or PyCharm installation is
+   not required.
+3. In the development PyCharm instance, open **View → Tool Windows → TI-84 Evo**.
+4. Plug in the calculator and press **Refresh devices**.
+5. Try **Read attributes** first, then **Capture screen**.
+6. Press **Browse calculator files** to list variable names, types, sizes, and RAM/Archive locations.
+7. Select one or more rows in the calculator file table and press **Delete
+   selected**. Confirm the exact RAM or Archive files before deletion.
+8. Open a `.py` file in the editor and press **Upload current Python file**.
+   Confirm the 1–8 character calculator program name. The current implementation
+   writes to RAM and overwrites an existing program with the same name.
 
 ### Push a multi-file project
 
-1. Press **Configure Project…** and select every `.py` file that belongs on the calculator.
-2. The plugin creates a source-controlled `.ti84-evo-project` manifest in the project root and opens it in the editor.
+1. Press **Configure project** and select every `.py` file that belongs on the calculator.
+2. The plugin creates a project-local `.ti84-evo-project` manifest, intended to
+   be checked into source control, and opens it in the editor. It asks before
+   replacing an existing manifest.
 3. Review the generated source-to-calculator-name mappings. Calculator names must be unique and contain 1–8 letters or digits.
-4. Press **Push Project** to upload every declared file over one calculator connection.
+4. Press **Push project** to upload every declared file over one calculator connection.
 
 The manifest is intentionally simple and order-preserving:
 
@@ -67,21 +90,21 @@ lib/state.py=STATE
 main.py=MAIN
 ```
 
-Paths are relative to the PyCharm project. Both the manifest and declared source files are read from current editor documents, so unsaved edits are included. If a later file fails, the tool window identifies it and lists files that were already uploaded.
+Paths are relative to the PyCharm project, and selected files must be inside the
+project directory. Both the manifest and declared source files are read from
+current editor documents, so unsaved edits are included. If a later file fails,
+the tool window identifies it and lists files that were already uploaded.
 
-You can also run Gradle from a terminal once Gradle 9+ is installed:
-
-```powershell
-gradle runIde
-```
-
-For a reproducible local build, use the included Gradle wrapper with Java 25:
+For a reproducible local build, use the included Gradle wrapper with Java 25.
+Set `JAVA_HOME` only if JDK 25 is not already selected:
 
 ```powershell
-$env:JAVA_HOME = "C:\Program Files\Java\jdk-25.0.4.1"
+$env:JAVA_HOME = "C:\path\to\jdk-25"
 .\gradlew.bat test --no-daemon
 .\gradlew.bat buildPlugin --no-daemon
 ```
+
+On macOS/Linux, use `./gradlew` in place of `.\gradlew.bat`.
 
 On Windows, if the checkout is inside OneDrive, generated Gradle output is
 automatically redirected to `%LOCALAPPDATA%\ti84-evo-for-pycharm\build` so
@@ -92,24 +115,20 @@ OneDrive cannot replace compiler directories with cloud placeholders. Set
 
 ```text
 PyCharm tool window
-      │
-      ▼
+        │
+        ▼
 EvoDeviceService
-      │
-      ▼
-EvoLink
-      │
-      ▼
-EvoTransactionEngine
-      │
-      ▼
-EvoFrameCodec
-      │
-      ▼
-EvoSerialTransport (jSerialComm)
-      │
-      ▼
-TI-84 Evo CDC interface
+├─ resource reads
+│  └─ EvoLink
+│     └─ EvoTransactionEngine
+│        └─ EvoFrameCodec / EvoResourceCodec
+│           └─ EvoSerialTransport (jSerialComm)
+│              └─ TI-84 Evo CDC interface
+└─ Python uploads
+   └─ EvoPythonTransfer
+      └─ EvoPythonPayload / KermitPacketCodec
+         └─ EvoSerialTransport (jSerialComm)
+            └─ TI-84 Evo CDC interface
 ```
 
 The protocol layer is deliberately independent of the UI so the same Kotlin implementation can later back run configurations, file upload/download, a calculator file browser, and other JetBrains IDE integrations.
@@ -127,7 +146,7 @@ Evo Python AppVar (type 15)
       ↓
 CBOR variable-transfer payload
       ↓
-Kermit S / F / A / D... / Z / B
+Kermit S / F / A / D… / Z / B
       ↓
 hh01/xfr/var?...type=15&memtarget=0&policy=1
       ↓
@@ -138,7 +157,10 @@ Program names are currently restricted to 1–8 letters or digits. The filename 
 
 Project push packages each declared source file as its own type-15 Evo Python variable. It opens the serial transport once, then performs one complete Kermit transfer transaction per file in manifest order.
 
-Protocol behavior for modern Evo file transfer was cross-checked against the public `Evo-Programming/evo_usb_py` implementation. This project contains an independent Kotlin implementation rather than embedding or invoking that Python tool.
+Protocol behavior for modern Evo file transfer was cross-checked against the
+public [Evo-Programming/evo_usb_py](https://github.com/Evo-Programming/evo_usb_py)
+implementation. This project contains an independent Kotlin implementation
+rather than embedding or invoking that Python tool.
 
 ## TI Python completion
 

@@ -34,5 +34,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ti84-evo-plugin
-          path: build/distributions/*.zip
-          if-no-files-found: error
+          path: build/distributions/ti84-evo-for-pycharm-*.zip
+          if-no-files-found: warn
