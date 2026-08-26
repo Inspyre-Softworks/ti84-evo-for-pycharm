@@ -86,6 +86,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         columnModel.getColumn(3).preferredWidth = 80
     }
     private val directoryEntries = mutableListOf<EvoDirectoryEntry>()
+    private var deletionInProgress = false
     private val deleteSelectedButton = JButton("Delete selected", AllIcons.General.Remove).apply {
         isEnabled = false
         toolTipText = "Delete the selected calculator files after confirmation"
@@ -112,7 +113,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     init {
         border = JBUI.Borders.empty(8)
         directoryTable.selectionModel.addListSelectionListener {
-            deleteSelectedButton.isEnabled = directoryTable.selectedRowCount > 0
+            updateDeleteSelectedButtonState()
         }
 
         val toolbar = EvoToolWindowToolbar.create(
@@ -218,6 +219,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         appendLine("Archive: ${archiveEntries.size} variables, ${archiveEntries.sumOf { it.size }} bytes")
                         if (entries.isEmpty()) append("No variables were returned by the directory resource.")
                     }.trimEnd()
+                    updateDeleteSelectedButtonState()
                 }.onFailure { showFailure(it) }
             }
         }
@@ -249,6 +251,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
 
     private fun deleteSelectedFiles() {
+        if (deletionInProgress) return
         val selectedEntries = directoryTable.selectedRows
             .map(directoryTable::convertRowIndexToModel)
             .distinct()
@@ -281,37 +284,67 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         )
         if (answer != Messages.YES) return
 
+        deletionInProgress = true
+        updateDeleteSelectedButtonState()
         showStatus("Deleting ${selectedEntries.size} calculator file(s)…", StatusKind.WORKING)
         output.text = "Deleting ${selectedEntries.joinToString { it.name }}…"
         service.deleteVariables(selectedEntries) { result ->
             onEdt {
-                result.onSuccess { deletedEntries ->
-                    removeDirectoryEntries(deletedEntries)
-                    showStatus("Deleted ${deletedEntries.size} calculator file(s)", StatusKind.CONNECTED)
-                    output.text = buildString {
-                        appendLine("Delete successful")
-                        deletedEntries.forEach {
-                            appendLine("• ${it.name} (${it.typeName}, ${it.size} bytes, ${it.location})")
+                try {
+                    result.onSuccess { deletedEntries ->
+                        removeDirectoryEntries(deletedEntries)
+                        showStatus("Deleted ${deletedEntries.size} calculator file(s)", StatusKind.CONNECTED)
+                        output.text = buildString {
+                            appendLine("Delete successful")
+                            deletedEntries.forEach {
+                                appendLine("• ${it.name} (${it.typeName}, ${it.size} bytes, ${it.location})")
+                            }
                         }
+                    }.onFailure { error ->
+                        if (error is EvoVariableDeleteException) {
+                            removeDirectoryEntries(error.deletedEntries)
+                        }
+                        showFailure(error)
                     }
-                }.onFailure { error ->
-                    if (error is EvoVariableDeleteException) {
-                        removeDirectoryEntries(error.deletedEntries)
-                    }
-                    showFailure(error)
+                } finally {
+                    deletionInProgress = false
+                    updateDeleteSelectedButtonState()
                 }
             }
         }
     }
 
     private fun removeDirectoryEntries(entries: List<EvoDirectoryEntry>) {
+        val remainingByIdentity = mutableMapOf<String, Int>()
         entries.forEach { entry ->
-            val modelRow = directoryEntries.indexOfFirst { it === entry }
-            if (modelRow >= 0) {
+            val identity = entryIdentity(entry)
+            remainingByIdentity[identity] = (remainingByIdentity[identity] ?: 0) + 1
+        }
+
+        for (modelRow in directoryEntries.lastIndex downTo 0) {
+            val identity = entryIdentity(directoryEntries[modelRow])
+            val remaining = remainingByIdentity[identity] ?: 0
+            if (remaining > 0) {
                 directoryEntries.removeAt(modelRow)
                 directoryModel.removeRow(modelRow)
+                if (remaining == 1) {
+                    remainingByIdentity.remove(identity)
+                } else {
+                    remainingByIdentity[identity] = remaining - 1
+                }
             }
         }
+        updateDeleteSelectedButtonState()
+    }
+
+    private fun entryIdentity(entry: EvoDirectoryEntry): String =
+        "${entry.type}:${entry.tokenName.joinToString(separator = ",") { byte -> "%02X".format(byte.toInt() and 0xFF) }}"
+
+    private fun updateDeleteSelectedButtonState() {
+        deleteSelectedButton.isEnabled =
+            !deletionInProgress &&
+                directoryEntries.isNotEmpty() &&
+                directoryTable.selectedRowCount > 0
     }
 
     private fun uploadCurrentPython() {

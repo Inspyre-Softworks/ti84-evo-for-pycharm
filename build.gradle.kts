@@ -15,7 +15,7 @@ require(canonicalVersion.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-
     "VERSION must contain a semantic version, got: $canonicalVersion"
 }
 version = canonicalVersion
-val pluginDistributionDirectory = layout.projectDirectory.dir("build/distributions")
+val pluginDistributionDirectory = layout.buildDirectory.dir("distributions")
 val currentPluginZipName = "${rootProject.name}-${project.version}.zip"
 
 // OneDrive can turn generated directories into cloud placeholders while Gradle
@@ -39,7 +39,7 @@ if (!configuredBuildDirectory.isNullOrBlank()) {
 val cleanStalePluginZips = tasks.register("cleanStalePluginZips") {
     doLast {
         delete(
-            fileTree(pluginDistributionDirectory.asFile) {
+            fileTree(pluginDistributionDirectory.get().asFile) {
                 include("${rootProject.name}-*.zip")
                 exclude(currentPluginZipName)
             }
@@ -55,6 +55,7 @@ repositories {
 }
 
 dependencies {
+    implementation(kotlin("stdlib"))
     implementation("com.fazecast:jSerialComm:2.11.4")
 
     intellijPlatform {
