@@ -36,10 +36,12 @@ class EvoTransactionEngine(private val transport: EvoTransport) {
         writeFrame(frame)
         val ack = readFrame()
         if (ack.command != EvoFrameCodec.CMD_Y) {
-            val detail = if (ack.command == 'E'.code) formatErrorPayload(ack.payload) else ack.commandText
-            throw EvoUnexpectedFrameException(
-                "expected Y ack for ${frame.commandText}, got ${ack.commandText}: $detail",
-            )
+            val message = if (ack.command == 'E'.code) {
+                "expected Y ack for ${frame.commandText}, got ${ack.commandText}: ${formatErrorPayload(ack.payload)}"
+            } else {
+                "expected Y ack for ${frame.commandText}, got ${ack.commandText}"
+            }
+            throw EvoUnexpectedFrameException(message)
         }
         if (ack.sequence != frame.sequence) {
             throw EvoUnexpectedFrameException("ack sequence mismatch for ${frame.commandText}")

@@ -4,6 +4,7 @@ import com.inspyresoftworks.ti84evo.transport.EvoTransport
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 
 class EvoTransactionEngineTest {
     @Test
@@ -34,6 +35,34 @@ class EvoTransactionEngineTest {
         }
 
         assertContains(error.message.orEmpty(), "got E: calculator error BZ")
+    }
+
+    @Test
+    fun `non-error unexpected frame does not duplicate command text`() {
+        val responses = ArrayDeque(
+            listOf(
+                EvoFrameCodec.encode(EvoFrame(0x20, EvoFrameCodec.CMD_Z, byteArrayOf())),
+            ),
+        )
+        val transport = object : EvoTransport {
+            override val description = "test"
+            override fun open() = Unit
+            override fun close() = Unit
+            override fun write(data: ByteArray) = Unit
+            override fun readFrameBytes(): ByteArray = responses.removeFirst()
+            override fun readPacketBytes(): ByteArray = error("not used")
+        }
+
+        val error = assertFailsWith<EvoUnexpectedFrameException> {
+            EvoTransactionEngine(transport).sendSmallTransaction(
+                "hh01/get/hh01/sys/attributes".encodeToByteArray(),
+                byteArrayOf('h'.code.toByte()),
+            )
+        }
+
+        val message = error.message.orEmpty()
+        assertContains(message, "got Z")
+        assertFalse(message.contains("got Z: Z"))
     }
 
     private fun ack(sequence: Int, payload: ByteArray = byteArrayOf()): ByteArray =
