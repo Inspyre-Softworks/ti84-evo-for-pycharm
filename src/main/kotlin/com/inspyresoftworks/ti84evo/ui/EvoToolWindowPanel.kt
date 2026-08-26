@@ -16,17 +16,21 @@ import com.intellij.ui.components.JBTabbedPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
+import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonPayload
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
+import com.inspyresoftworks.ti84evo.protocol.EvoVariableDeleteException
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
 import com.inspyresoftworks.ti84evo.service.EvoDeviceService
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.Image
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.ImageIcon
+import javax.swing.JButton
 import javax.swing.JFileChooser
 import javax.swing.JPanel
 import javax.swing.JSplitPane
@@ -81,15 +85,35 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         columnModel.getColumn(2).preferredWidth = 90
         columnModel.getColumn(3).preferredWidth = 80
     }
+    private val directoryEntries = mutableListOf<EvoDirectoryEntry>()
+    private val deleteSelectedButton = JButton("Delete selected", AllIcons.General.Remove).apply {
+        isEnabled = false
+        toolTipText = "Delete the selected calculator files after confirmation"
+        addActionListener { deleteSelectedFiles() }
+    }
     private val screenPane = JBScrollPane(screen)
     private val directoryPane = JBScrollPane(directoryTable)
+    private val directoryContent = JPanel(BorderLayout()).apply {
+        isOpaque = false
+        add(directoryPane, BorderLayout.CENTER)
+        add(
+            JPanel(FlowLayout(FlowLayout.LEFT, 0, 4)).apply {
+                isOpaque = false
+                add(deleteSelectedButton)
+            },
+            BorderLayout.SOUTH,
+        )
+    }
     private val contentTabs = JBTabbedPane().apply {
         addTab("Screen", screenPane)
-        addTab("Calculator Files", directoryPane)
+        addTab("Calculator Files", directoryContent)
     }
 
     init {
         border = JBUI.Borders.empty(8)
+        directoryTable.selectionModel.addListSelectionListener {
+            deleteSelectedButton.isEnabled = directoryTable.selectedRowCount > 0
+        }
 
         val toolbar = EvoToolWindowToolbar.create(
             this,
@@ -168,7 +192,9 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             onEdt {
                 result.onSuccess { entries ->
                     directoryModel.rowCount = 0
-                    entries.sortedBy { it.name.lowercase() }.forEach { entry ->
+                    directoryEntries.clear()
+                    directoryEntries += entries.sortedBy { it.name.lowercase() }
+                    directoryEntries.forEach { entry ->
                         directoryModel.addRow(
                             arrayOf<Any>(
                                 entry.name,
@@ -178,7 +204,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                             ),
                         )
                     }
-                    contentTabs.selectedComponent = directoryPane
+                    contentTabs.selectedComponent = directoryContent
                     showStatus(
                         "Connected — ${entries.size} calculator files",
                         StatusKind.CONNECTED,
@@ -218,6 +244,72 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                     contentTabs.selectedComponent = screenPane
                     output.text = capture.metadata.entries.joinToString("\n") { (key, value) -> "$key: ${formatValue(value)}" }
                 }.onFailure { showFailure(it) }
+            }
+        }
+    }
+
+    private fun deleteSelectedFiles() {
+        val selectedEntries = directoryTable.selectedRows
+            .map(directoryTable::convertRowIndexToModel)
+            .distinct()
+            .sorted()
+            .map(directoryEntries::get)
+        if (selectedEntries.isEmpty()) return
+
+        val answer = Messages.showYesNoDialog(
+            project,
+            buildString {
+                appendLine(
+                    if (selectedEntries.size == 1) {
+                        "Delete ${selectedEntries.single().name} from the calculator?"
+                    } else {
+                        "Delete ${selectedEntries.size} selected files from the calculator?"
+                    },
+                )
+                appendLine()
+                selectedEntries.take(10).forEach { entry ->
+                    appendLine("• ${entry.name} (${entry.typeName}, ${entry.location})")
+                }
+                if (selectedEntries.size > 10) {
+                    appendLine("• …and ${selectedEntries.size - 10} more")
+                }
+                appendLine()
+                append("This cannot be undone.")
+            },
+            "Delete Calculator Files",
+            Messages.getWarningIcon(),
+        )
+        if (answer != Messages.YES) return
+
+        showStatus("Deleting ${selectedEntries.size} calculator file(s)…", StatusKind.WORKING)
+        output.text = "Deleting ${selectedEntries.joinToString { it.name }}…"
+        service.deleteVariables(selectedEntries) { result ->
+            onEdt {
+                result.onSuccess { deletedEntries ->
+                    removeDirectoryEntries(deletedEntries)
+                    showStatus("Deleted ${deletedEntries.size} calculator file(s)", StatusKind.CONNECTED)
+                    output.text = buildString {
+                        appendLine("Delete successful")
+                        deletedEntries.forEach {
+                            appendLine("• ${it.name} (${it.typeName}, ${it.size} bytes, ${it.location})")
+                        }
+                    }
+                }.onFailure { error ->
+                    if (error is EvoVariableDeleteException) {
+                        removeDirectoryEntries(error.deletedEntries)
+                    }
+                    showFailure(error)
+                }
+            }
+        }
+    }
+
+    private fun removeDirectoryEntries(entries: List<EvoDirectoryEntry>) {
+        entries.forEach { entry ->
+            val modelRow = directoryEntries.indexOfFirst { it === entry }
+            if (modelRow >= 0) {
+                directoryEntries.removeAt(modelRow)
+                directoryModel.removeRow(modelRow)
             }
         }
     }
@@ -433,17 +525,29 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
 
     private fun showFailure(error: Throwable) {
         showStatus("Operation failed", StatusKind.ERROR)
-        output.text = if (error is EvoPythonTransfer.ProjectUploadException) {
-            buildString {
-                appendLine(error.message)
-                if (error.completedUploads.isNotEmpty()) {
-                    appendLine("Already uploaded: ${error.completedUploads.joinToString { it.programName }}")
+        output.text = when (error) {
+            is EvoPythonTransfer.ProjectUploadException -> {
+                buildString {
+                    appendLine(error.message)
+                    if (error.completedUploads.isNotEmpty()) {
+                        appendLine("Already uploaded: ${error.completedUploads.joinToString { it.programName }}")
+                    }
+                    appendLine()
+                    append(error.cause?.stackTraceToString() ?: error.stackTraceToString())
                 }
-                appendLine()
-                append(error.cause?.stackTraceToString() ?: error.stackTraceToString())
             }
-        } else {
-            error.stackTraceToString()
+            is EvoVariableDeleteException -> {
+                buildString {
+                    appendLine(error.message)
+                    if (error.deletedEntries.isNotEmpty()) {
+                        appendLine("Already deleted: ${error.deletedEntries.joinToString { it.name }}")
+                    }
+                    appendLine("Failed variable: ${error.failedEntry.name}")
+                    appendLine()
+                    append(error.cause?.stackTraceToString() ?: error.stackTraceToString())
+                }
+            }
+            else -> error.stackTraceToString()
         }
     }
 

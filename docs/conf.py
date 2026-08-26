@@ -7,7 +7,7 @@ sys.path.insert(0, str(ROOT))
 
 project = "TI-84 Evo for PyCharm"
 copyright = "2026, Inspyre-Softworks"
-author = "Inspyre-Softworks"
+author = "Taylor B. | Inspyre-Softworks"
 release = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 extensions = ["sphinx.ext.napoleon"]

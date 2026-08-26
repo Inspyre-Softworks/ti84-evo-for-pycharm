@@ -40,7 +40,10 @@ class EvoSerialTransport(
             throw EvoProtocolException("failed to open ${port.systemPortName}")
         }
 
-        port.setDTRandRTS(false, false)
+        if (!port.setDTRandRTS(true, true)) {
+            port.closePort()
+            throw EvoProtocolException("failed to assert DTR/RTS on ${port.systemPortName}")
+        }
         port.flushIOBuffers()
     }
 

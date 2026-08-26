@@ -1,12 +1,23 @@
 # Changelog
 
+## 0.2.8-SNAPSHOT
+
+- Replace the preliminary bulk RAM-clear action with confirmation-protected deletion for selected rows in the calculator file table, including RAM and Archive variables and partial-failure reporting.
+
+## 0.2.7-SNAPSHOT
+
+- Add a preliminary confirmation-protected **Clear calculator RAM** action that preserves Archive variables and reports partial deletion failures.
+- Assert the CDC serial DTR and RTS control lines to match the calculator's working USB handshake.
+
 ## 0.2.6-SNAPSHOT
 
-- Normalize system resources into the calculator's nested ``hh01`` namespace.
+- Normalize system resources into the calculator's nested `hh01` namespace.
 - Preserve calculator `E`-frame payloads and include the failed resource URI in diagnostics.
 - Present calculator attributes in a grouped details dialog with friendly labels, formatted memory and state values, and a Markdown copy action.
 - Replace the marketplace logo with compact light and dark SVG artwork adapted from the TI-84 Evo calculator-and-cable design.
-- Lock the pre-publication Marketplace plugin ID to ``com.inspyresoftworks.ti84evo`` and rely on the IntelliJ Platform's bundled Kotlin standard library.
+- Lock the pre-publication Marketplace plugin ID to `com.inspyresoftworks.ti84evo` and rely on the IntelliJ Platform's bundled Kotlin standard library.
+- Audit the README and Sphinx documentation against the implementation, build configuration, CI workflow, and hardware-acceptance status.
+- Add a glossary for USB, protocol, transfer, display, memory, and IDE terminology.
 
 ## 0.2.5-SNAPSHOT
 
@@ -27,7 +38,7 @@
 - Complete public firmware symbols while typing `from ti_draw import …` and the equivalent form for every bundled TI module.
 - Let PyCharm's resolver provide `from … import …` symbols once, while retaining the automatic popup trigger.
 - Add `.ti84-evo-project` manifests for declaring multiple project source files and their calculator program names.
-- Add **Configure Project…** and one-click **Push Project** tool-window actions.
+- Add **Configure project** and one-click **Push project** tool-window actions.
 - Reuse one serial connection while sending one complete Evo variable transaction per declared Python file.
 - Include unsaved manifest and source editor changes in project pushes.
 - Report aggregate transfer totals and partial progress when a later file fails.
@@ -36,7 +47,7 @@
 - Add native host-to-Evo Python program upload.
 - Package active `.py` source as a type-15 Evo Python AppVar inside the expected CBOR transfer envelope.
 - Add a Kermit sender with negotiated block checks, long packets, quoting, repeat encoding, and element-aligned D-packet chunking.
-- Add **Upload Current .py** to the TI-84 Evo tool window.
+- Add **Upload current Python file** to the TI-84 Evo tool window.
 - Read the current editor document so unsaved editor changes are included in an upload.
 - Default calculator program names from the active filename and validate the Evo 1–8 character limit.
 - Upload to RAM with overwrite policy enabled for the initial hardware test.
