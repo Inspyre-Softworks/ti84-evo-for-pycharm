@@ -1,5 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.tasks.BuildPluginTask
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
-import org.gradle.api.tasks.bundling.Zip
 
 plugins {
     kotlin("jvm") version "2.4.10"
@@ -99,7 +99,7 @@ tasks {
         useJUnitPlatform()
     }
 
-    named<Zip>("buildPlugin") {
+    named<BuildPluginTask>("buildPlugin") {
         dependsOn(cleanStalePluginZips)
         destinationDirectory.set(pluginDistributionDirectory)
         archiveFileName.set(currentPluginZipName)
