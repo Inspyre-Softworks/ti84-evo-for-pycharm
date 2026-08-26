@@ -12,6 +12,7 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
     data class Program(
         val programName: String,
         val source: String,
+        val archived: Boolean = false,
     )
 
     data class Result(
@@ -87,8 +88,9 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
     /** Uploads every declared program over the already-open transport. */
     fun uploadProject(
         programs: List<Program>,
-        archive: Boolean = false,
+        archive: Boolean? = null,
         overwrite: Boolean = true,
+        onProgress: (Result, Int, Int) -> Unit = { _, _, _ -> },
     ): ProjectResult {
         require(programs.isNotEmpty()) { "Evo project must contain at least one Python program" }
         require(programs.map { it.programName.uppercase() }.distinct().size == programs.size) {
@@ -97,16 +99,18 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
 
         val completed = mutableListOf<Result>()
         for (program in programs) {
-            try {
-                completed += upload(
+            val result = try {
+                upload(
                     programName = program.programName,
                     source = program.source,
-                    archive = archive,
+                    archive = archive ?: program.archived,
                     overwrite = overwrite,
                 )
             } catch (error: Throwable) {
                 throw ProjectUploadException(completed.toList(), program.programName, error)
             }
+            completed += result
+            onProgress(result, completed.size, programs.size)
         }
         return ProjectResult(completed)
     }

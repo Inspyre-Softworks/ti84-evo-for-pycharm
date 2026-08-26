@@ -1,5 +1,7 @@
 import org.jetbrains.intellij.platform.gradle.tasks.BuildPluginTask
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.gradle.api.tasks.bundling.Jar
+import org.gradle.api.tasks.bundling.Zip
 
 plugins {
     kotlin("jvm") version "2.4.10"
@@ -67,6 +69,43 @@ dependencies {
     testImplementation(kotlin("test"))
     // Required by PyCharm's bundled JUnit5TestSessionListener at test startup.
     testImplementation("junit:junit:4.13.2")
+}
+
+val cliSourceSet = sourceSets.create("cli") {
+    kotlin.srcDir("src/cli/kotlin")
+    compileClasspath += sourceSets.main.get().output + configurations.compileClasspath.get()
+    runtimeClasspath += output + compileClasspath
+}
+
+val cliJar = tasks.register<Jar>("cliJar") {
+    group = "distribution"
+    description = "Builds the standalone PowerShell/Explorer TI-84 Evo sender"
+    archiveFileName.set("ti84-evo-cli.jar")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest.attributes["Main-Class"] = "com.inspyresoftworks.ti84evo.cli.EvoCli"
+    from(cliSourceSet.output)
+    from(sourceSets.main.get().output) {
+        include("com/inspyresoftworks/ti84evo/model/**")
+        include("com/inspyresoftworks/ti84evo/project/**")
+        include("com/inspyresoftworks/ti84evo/protocol/**")
+        include("com/inspyresoftworks/ti84evo/transport/**")
+    }
+    from(
+        configurations.runtimeClasspath.get()
+            .filter { it.name.startsWith("kotlin-stdlib") || it.name.startsWith("jSerialComm") }
+            .map(::zipTree),
+    )
+    exclude("META-INF/*.SF", "META-INF/*.RSA", "META-INF/*.DSA")
+}
+
+tasks.register<Zip>("cliDistZip") {
+    group = "distribution"
+    description = "Packages the standalone sender and PowerShell launcher"
+    dependsOn(cliJar)
+    archiveFileName.set("ti84-evo-cli-${project.version}.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
+    from(cliJar)
+    from("src/cli/scripts/ti84-evo.ps1")
 }
 
 kotlin {

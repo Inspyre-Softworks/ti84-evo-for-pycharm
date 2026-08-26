@@ -14,23 +14,43 @@ import java.nio.file.Path
  */
 object EvoProjectManifest {
     const val FILE_NAME = ".ti84-evo-project"
+    private const val ALWAYS_PUSH_ALL_OPTION = "@always-push-all="
 
     data class Entry(
         val sourcePath: String,
         val programName: String,
+        val archived: Boolean = false,
+    )
+
+    data class Configuration(
+        val entries: List<Entry>,
+        val alwaysPushAll: Boolean = false,
     )
 
     class ConfigurationException(message: String) : IllegalArgumentException(message)
 
-    fun parse(text: String): List<Entry> {
+    fun parse(text: String): List<Entry> = parseConfiguration(text).entries
+
+    fun parseConfiguration(text: String): Configuration {
         val entries = mutableListOf<Entry>()
         val sourcePaths = mutableSetOf<String>()
         val programNames = mutableSetOf<String>()
+        var alwaysPushAll = false
 
         text.lineSequence().forEachIndexed { index, rawLine ->
             val lineNumber = index + 1
             val line = rawLine.trim()
             if (line.isEmpty() || line.startsWith('#')) return@forEachIndexed
+            if (line.startsWith(ALWAYS_PUSH_ALL_OPTION, ignoreCase = true)) {
+                alwaysPushAll = when (line.substringAfter('=').trim().lowercase()) {
+                    "true" -> true
+                    "false" -> false
+                    else -> throw ConfigurationException(
+                        "$FILE_NAME:$lineNumber always-push-all must be true or false",
+                    )
+                }
+                return@forEachIndexed
+            }
 
             val separator = line.indexOf('=')
             if (separator < 1 || separator == line.lastIndex) {
@@ -40,7 +60,8 @@ object EvoProjectManifest {
             }
 
             val sourcePath = normalizeSourcePath(line.substring(0, separator).trim(), lineNumber)
-            val programName = line.substring(separator + 1).trim().uppercase()
+            val targetParts = line.substring(separator + 1).trim().split('|', limit = 2)
+            val programName = targetParts[0].trim().uppercase()
             if (!EvoPythonPayload.isValidProgramName(programName)) {
                 throw ConfigurationException(
                     "$FILE_NAME:$lineNumber calculator name must contain 1–8 letters or digits",
@@ -56,13 +77,21 @@ object EvoProjectManifest {
                 )
             }
 
-            entries += Entry(sourcePath, programName)
+            val archived = when (val target = targetParts.getOrNull(1)?.trim()?.lowercase()) {
+                null, "", "ram" -> false
+                "archive" -> true
+                else -> throw ConfigurationException(
+                    "$FILE_NAME:$lineNumber storage must be RAM or Archive, got $target",
+                )
+            }
+
+            entries += Entry(sourcePath, programName, archived)
         }
 
         if (entries.isEmpty()) {
             throw ConfigurationException("$FILE_NAME does not declare any Python files")
         }
-        return entries
+        return Configuration(entries, alwaysPushAll)
     }
 
     fun render(sourcePaths: Collection<String>): String {
@@ -80,12 +109,40 @@ object EvoProjectManifest {
                 Entry(sourcePath, uniqueProgramName(fileStem, usedNames))
             }
 
+
+        return renderEntries(entries)
+    }
+
+    fun renderEntries(entries: Collection<Entry>, alwaysPushAll: Boolean = false): String {
+        if (entries.isEmpty()) {
+            throw ConfigurationException("Configure at least one Python file")
+        }
+        validateEntries(entries)
+
         return buildString {
             appendLine("# TI-84 Evo Python project")
-            appendLine("# source path = calculator program name (1-8 letters or digits)")
+            appendLine("# source path = calculator program name | RAM or Archive")
             appendLine("# Files are pushed in the order listed below.")
+            appendLine("$ALWAYS_PUSH_ALL_OPTION$alwaysPushAll")
             for (entry in entries) {
-                appendLine("${entry.sourcePath}=${entry.programName}")
+                appendLine("${entry.sourcePath}=${entry.programName}|${if (entry.archived) "Archive" else "RAM"}")
+            }
+        }
+    }
+
+    private fun validateEntries(entries: Collection<Entry>) {
+        val sourcePaths = mutableSetOf<String>()
+        val programNames = mutableSetOf<String>()
+        entries.forEach { entry ->
+            normalizeSourcePath(entry.sourcePath, null)
+            if (!EvoPythonPayload.isValidProgramName(entry.programName)) {
+                throw ConfigurationException("Calculator name must contain 1–8 letters or digits: ${entry.programName}")
+            }
+            if (!sourcePaths.add(entry.sourcePath.lowercase())) {
+                throw ConfigurationException("${entry.sourcePath} is configured more than once")
+            }
+            if (!programNames.add(entry.programName.uppercase())) {
+                throw ConfigurationException("Calculator name ${entry.programName} is used more than once")
             }
         }
     }

@@ -53,6 +53,7 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
     fun uploadPython(
         source: String,
         programName: String,
+        archive: Boolean = false,
         callback: (Result<EvoPythonTransfer.Result>) -> Unit,
     ) {
         coroutineScope.launch {
@@ -63,7 +64,7 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
                         EvoPythonTransfer(transport).upload(
                             programName = programName,
                             source = source,
-                            archive = false,
+                            archive = archive,
                             overwrite = true,
                         )
                     }
@@ -75,6 +76,7 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
 
     fun uploadPythonProject(
         programs: List<EvoPythonTransfer.Program>,
+        onProgress: (EvoPythonTransfer.Result, Int, Int) -> Unit = { _, _, _ -> },
         callback: (Result<EvoPythonTransfer.ProjectResult>) -> Unit,
     ) {
         coroutineScope.launch {
@@ -84,8 +86,8 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
                         transport.open()
                         EvoPythonTransfer(transport).uploadProject(
                             programs = programs,
-                            archive = false,
                             overwrite = true,
+                            onProgress = onProgress,
                         )
                     }
                 }

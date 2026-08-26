@@ -1,6 +1,24 @@
 Glossary
 ========
 
+Glossary table of contents
+--------------------------
+
+**A** — :term:`acceptance test`, :term:`AppVar`, :term:`Archive`
+
+**B–C** — :term:`block check`, :term:`CBOR`, :term:`CDC`, :term:`checksum`,
+:term:`control quoting`
+
+**D–F** — :term:`D frame`, :term:`dynamic resource`, :term:`endpoint`,
+:term:`extended frame`, :term:`frame`, :term:`framebuffer`
+
+**H–P** — :term:`hh01`, :term:`Kermit`, :term:`long packet`, :term:`PID`
+
+**R** — :term:`RAM`, :term:`repeat encoding`, :term:`resource`, :term:`RGB565`
+
+**S–V** — :term:`short frame`, :term:`synthetic library`, :term:`tokenized name`,
+:term:`transaction ladder`, :term:`type stub`, :term:`VID`
+
 .. glossary::
    :sorted:
 
@@ -16,8 +34,8 @@ Glossary
 
    Archive
       Nonvolatile calculator storage. Directory entries report whether a
-      variable is in Archive or :term:`RAM`. The current upload actions always
-      target RAM.
+      variable is in Archive or :term:`RAM`. Single-file uploads and project
+      entries can target Archive.
 
    block check
       The Kermit integrity value attached to a packet. During send-init, the
@@ -90,8 +108,8 @@ Glossary
       ``E018`` together with vendor ID :term:`VID` ``0451``.
 
    RAM
-      Volatile calculator storage. The current single-file and project upload
-      actions write to RAM with overwrite enabled.
+      Volatile calculator storage. It is the default upload target; Archive can
+      instead be selected for a single file or configured per project entry.
 
    repeat encoding
       Kermit compression that replaces a run of repeated bytes with a repeat
@@ -133,4 +151,3 @@ Glossary
    VID
       USB vendor identifier. Texas Instruments uses VID ``0451``; the plugin
       combines it with the Evo :term:`PID` to find the calculator's CDC port.
-

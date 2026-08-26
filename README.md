@@ -43,7 +43,13 @@ are on GitHub.
 - Uses a native icon toolbar with tooltips, grouped actions, persistent status, and an explicit overflow menu at narrow tool-window widths.
 - Packages dedicated 40×40 light and dark SVG logos for the IDE plugin manager and JetBrains Marketplace.
 - Bundles typed API stubs for the complete `ti_*` module family: `ti_draw`, `ti_image`, `ti_system`, `ti_plotlib`, `ti_hub`, and `ti_rover`.
-- Uploads the active PyCharm `.py` file as an Evo type-15 Python program using the calculator's Kermit variable-transfer endpoint.
+- Uploads the active PyCharm `.py` file as an Evo type-15 Python program to RAM or Archive using the calculator's Kermit variable-transfer endpoint.
+- Provides a full project configuration window with editable names, ordering,
+  per-file RAM/Archive targets, and an **Always rebuild / push all files** option.
+- Pushes only files changed since their last successful upload, with visible
+  multi-file progress and clear calculator-connection failure pop-ups.
+- Packages a companion colored PowerShell CLI with optional current-user
+  Explorer context menus for sending Python files, folders, or manifests.
 - Packages source into the Evo Python AppVar + CBOR representation before transfer; it does not send loose desktop text as though the calculator had a normal filesystem.
 - Uses negotiated Kermit long packets for host-to-calculator transfers while preserving the proven read-only resource path for screenshots and attributes.
 
@@ -69,12 +75,12 @@ the included Gradle 9.6.0 wrapper.
 7. Select one or more rows in the calculator file table and press **Delete
    selected**. Confirm the exact RAM or Archive files before deletion.
 8. Open a `.py` file in the editor and press **Upload current Python file**.
-   Confirm the 1–8 character calculator program name. The current implementation
-   writes to RAM and overwrites an existing program with the same name.
+   Confirm the 1–8 character calculator program name and choose RAM or Archive.
+   The current implementation overwrites an existing program with the same name.
 
 ### Push a multi-file project
 
-1. Press **Configure project** and select every `.py` file that belongs on the calculator.
+1. Press **Configure project** and add every `.py` file that belongs on the calculator.
 2. The plugin creates a project-local `.ti84-evo-project` manifest, intended to
    be checked into source control, and opens it in the editor. It asks before
    replacing an existing manifest.
@@ -84,16 +90,35 @@ the included Gradle 9.6.0 wrapper.
 The manifest is intentionally simple and order-preserving:
 
 ```properties
-# source path = calculator program name
-lib/drawing.py=DRAW
-lib/state.py=STATE
-main.py=MAIN
+# source path = calculator program name | RAM or Archive
+@always-push-all=false
+lib/drawing.py=DRAW|Archive
+lib/state.py=STATE|RAM
+main.py=MAIN|RAM
 ```
 
 Paths are relative to the PyCharm project, and selected files must be inside the
-project directory. Both the manifest and declared source files are read from
-current editor documents, so unsaved edits are included. If a later file fails,
-the tool window identifies it and lists files that were already uploaded.
+project directory. Normal pushes send only changed files; enable **Always
+rebuild / push all files** in the configuration window to override that. Both
+the manifest and declared source files are read from current editor documents,
+so unsaved edits are included. If a later file fails, the tool window identifies
+it and records files that were already uploaded so a retry skips them.
+
+### PowerShell and Explorer
+
+Build and extract the companion distribution:
+
+```powershell
+.\gradlew.bat cliDistZip
+.\ti84-evo.ps1 send
+.\ti84-evo.ps1 send --always-rebuild
+.\ti84-evo.ps1 install-context-menu
+```
+
+The CLI stays in this repository as a separate artifact, sharing the plugin's
+protocol, manifest, Archive support, and incremental upload state. The optional
+installer adds **Send to TI-84 Evo** to `.py` file and folder context menus for
+the current Windows user.
 
 For a reproducible local build, use the included Gradle wrapper with Java 25.
 Set `JAVA_HOME` only if JDK 25 is not already selected:
@@ -150,7 +175,7 @@ Kermit S / F / A / D… / Z / B
       ↓
 hh01/xfr/var?...type=15&memtarget=0&policy=1
       ↓
-TI-84 Evo RAM
+TI-84 Evo RAM or Archive
 ```
 
 Program names are currently restricted to 1–8 letters or digits. The filename stem is sanitized and offered as the default name.
@@ -179,6 +204,6 @@ key = ti_system.wait_key()
 
 ## Next milestone
 
-1. expose RAM vs Archive target selection;
-2. add download/delete/rename actions;
-3. add a real **TI-84 Evo** run configuration that pushes and launches the selected Python project.
+1. add download and rename actions;
+2. add a real **TI-84 Evo** run configuration that pushes and launches the selected Python project;
+3. perform physical-device acceptance of Archive, incremental multi-file, and CLI upload paths.

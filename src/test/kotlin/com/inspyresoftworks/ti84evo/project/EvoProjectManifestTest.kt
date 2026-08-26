@@ -32,8 +32,29 @@ class EvoProjectManifestTest {
         )
 
         assertEquals(
-            listOf("main.py=MAIN", "utilities_one.py=UTILITIE", "utilities_two.py=UTILITI2"),
+            listOf(
+                "@always-push-all=false",
+                "main.py=MAIN|RAM",
+                "utilities_one.py=UTILITIE|RAM",
+                "utilities_two.py=UTILITI2|RAM",
+            ),
             rendered.lineSequence().filter { it.isNotBlank() && !it.startsWith('#') }.toList(),
+        )
+    }
+
+    @Test
+    fun `configuration persists archive targets and always rebuild`() {
+        val text = EvoProjectManifest.renderEntries(
+            listOf(EvoProjectManifest.Entry("main.py", "MAIN", archived = true)),
+            alwaysPushAll = true,
+        )
+
+        assertEquals(
+            EvoProjectManifest.Configuration(
+                listOf(EvoProjectManifest.Entry("main.py", "MAIN", archived = true)),
+                alwaysPushAll = true,
+            ),
+            EvoProjectManifest.parseConfiguration(text),
         )
     }
 
