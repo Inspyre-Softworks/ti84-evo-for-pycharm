@@ -479,7 +479,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         }
         val configured = resolvedProject.programs
 
-        val pending = if (resolvedProject.alwaysPushAll) {
+        var pending = if (resolvedProject.alwaysPushAll) {
             configured
         } else {
             val pendingPairs = EvoProjectUploadState.pending(
@@ -492,16 +492,28 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         if (pending.isEmpty()) {
             showStatus("Project is up to date", StatusKind.READY)
             output.text = "No changed project files to upload."
-            Messages.showInfoMessage(project, "All configured files are already up to date.", "TI-84 Evo")
-            return
+            val choice = Messages.showDialog(
+                project,
+                "All configured files are already up to date.",
+                "TI-84 Evo Project Is Up to Date",
+                arrayOf("Push Anyway", "Cancel"),
+                1,
+                Messages.getInformationIcon(),
+            )
+            if (choice != 0) return
+            pending = configured
         }
 
-        val uploadMode = if (resolvedProject.alwaysPushAll) "always rebuild" else "incremental"
+        val uploadMode = when {
+            resolvedProject.alwaysPushAll -> "always rebuild"
+            pending.size == configured.size -> "push anyway"
+            else -> "incremental"
+        }
         showStatus("Pushing ${pending.size} project files ($uploadMode)…", StatusKind.WORKING)
         uploadProgress.minimum = 0
         uploadProgress.maximum = pending.size
         uploadProgress.value = 0
-        uploadProgress.string = "Preparing ${pending.size} changed file(s)…"
+        uploadProgress.string = "Preparing ${pending.size} file(s)…"
         uploadProgress.isVisible = true
         output.text = buildString {
             appendLine("Uploading project files in one calculator session ($uploadMode):")

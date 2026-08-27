@@ -1,13 +1,18 @@
 # Changelog
 
-## 0.2.8-SNAPSHOT
+## 0.2.9-SNAPSHOT
 
-- Replace the preliminary bulk RAM-clear action with confirmation-protected deletion for selected rows in the calculator file table, including RAM and Archive variables and partial-failure reporting.
 - Replace chooser-only project setup with a full configuration window for file order, calculator names, per-entry RAM/Archive targets, and an always-rebuild option.
 - Make normal project pushes incremental with successful-file fingerprints and visible multi-file progress.
+- Offer a one-time **Push Anyway** action when every configured project file is already up to date.
 - Show a clear troubleshooting pop-up when an action cannot reach the calculator.
 - Add a separately packaged, color-aware PowerShell CLI and optional current-user Explorer context menus that share the plugin's manifests and upload engine.
 - Add a linked table of contents to the glossary.
+- Ignore generated local IntelliJ Platform state in Git.
+
+## 0.2.8-SNAPSHOT
+
+- Replace the preliminary bulk RAM-clear action with confirmation-protected deletion for selected rows in the calculator file table, including RAM and Archive variables and partial-failure reporting.
 
 ## 0.2.7-SNAPSHOT
 
