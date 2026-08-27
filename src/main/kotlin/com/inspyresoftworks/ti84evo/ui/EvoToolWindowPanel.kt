@@ -527,6 +527,14 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             onProgress = { upload, completed, total ->
                 val resolved = pending[completed - 1]
                 runCatching { EvoProjectUploadState.markUploaded(root, resolved.entry, resolved.source) }
+                    .onFailure { e ->
+                        onEdt {
+                            output.text = buildString {
+                                append(output.text)
+                                appendLine("Warning: could not save upload state for ${resolved.entry.programName}: ${e.message ?: e.javaClass.simpleName}")
+                            }
+                        }
+                    }
                 onEdt {
                     uploadProgress.value = completed
                     uploadProgress.string = "Uploaded $completed/$total: ${upload.programName}"

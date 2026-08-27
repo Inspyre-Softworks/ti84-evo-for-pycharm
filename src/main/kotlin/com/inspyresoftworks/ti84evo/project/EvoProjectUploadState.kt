@@ -43,10 +43,14 @@ object EvoProjectUploadState {
         Files.createDirectories(path.parent)
         val temporary = Files.createTempFile(path.parent, "ti84-evo-upload-", ".tmp")
         Files.newOutputStream(temporary).use { state.store(it, "TI-84 Evo successful upload fingerprints") }
-        runCatching {
-            Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-        }.getOrElse {
-            Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING)
+        try {
+            runCatching {
+                Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            }.getOrElse {
+                Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING)
+            }
+        } finally {
+            Files.deleteIfExists(temporary)
         }
     }
 

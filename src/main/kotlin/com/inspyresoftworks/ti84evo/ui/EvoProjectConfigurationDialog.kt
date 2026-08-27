@@ -54,7 +54,7 @@ internal class EvoProjectConfigurationDialog(
         fun changed() = fireTableDataChanged()
     }
     private val table = JBTable(model).apply {
-        selectionModel.selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
+        selectionModel.selectionMode = ListSelectionModel.SINGLE_SELECTION
         fillsViewportHeight = true
         preferredScrollableViewportSize = Dimension(680, 300)
         columnModel.getColumn(0).preferredWidth = 400

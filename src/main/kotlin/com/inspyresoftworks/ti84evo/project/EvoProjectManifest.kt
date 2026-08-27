@@ -117,14 +117,21 @@ object EvoProjectManifest {
         if (entries.isEmpty()) {
             throw ConfigurationException("Configure at least one Python file")
         }
-        validateEntries(entries)
+        val normalized = entries.map { entry ->
+            Entry(
+                normalizeSourcePath(entry.sourcePath, null),
+                entry.programName.uppercase(),
+                entry.archived,
+            )
+        }
+        validateEntries(normalized)
 
         return buildString {
             appendLine("# TI-84 Evo Python project")
             appendLine("# source path = calculator program name | RAM or Archive")
             appendLine("# Files are pushed in the order listed below.")
             appendLine("$ALWAYS_PUSH_ALL_OPTION$alwaysPushAll")
-            for (entry in entries) {
+            for (entry in normalized) {
                 appendLine("${entry.sourcePath}=${entry.programName}|${if (entry.archived) "Archive" else "RAM"}")
             }
         }
@@ -134,11 +141,11 @@ object EvoProjectManifest {
         val sourcePaths = mutableSetOf<String>()
         val programNames = mutableSetOf<String>()
         entries.forEach { entry ->
-            normalizeSourcePath(entry.sourcePath, null)
+            val normalizedPath = normalizeSourcePath(entry.sourcePath, null)
             if (!EvoPythonPayload.isValidProgramName(entry.programName)) {
                 throw ConfigurationException("Calculator name must contain 1–8 letters or digits: ${entry.programName}")
             }
-            if (!sourcePaths.add(entry.sourcePath.lowercase())) {
+            if (!sourcePaths.add(normalizedPath.lowercase())) {
                 throw ConfigurationException("${entry.sourcePath} is configured more than once")
             }
             if (!programNames.add(entry.programName.uppercase())) {

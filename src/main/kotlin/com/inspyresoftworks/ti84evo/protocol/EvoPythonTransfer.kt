@@ -110,7 +110,7 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
                 throw ProjectUploadException(completed.toList(), program.programName, error)
             }
             completed += result
-            onProgress(result, completed.size, programs.size)
+            runCatching { onProgress(result, completed.size, programs.size) }
         }
         return ProjectResult(completed)
     }
