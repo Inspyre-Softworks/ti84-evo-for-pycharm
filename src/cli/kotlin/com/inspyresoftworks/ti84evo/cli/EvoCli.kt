@@ -148,8 +148,14 @@ object EvoCli {
     }.distinct().sortedBy(Path::toString)
 
     private fun commonParent(paths: List<Path>): Path {
-        var parent = paths.first().parent
-        while (paths.any { !it.startsWith(parent) }) parent = parent.parent
+        var parent = requireNotNull(paths.first().parent) {
+            "Input paths must have a common filesystem root"
+        }
+        while (paths.any { !it.startsWith(parent) }) {
+            parent = requireNotNull(parent.parent) {
+                "Input paths must share a filesystem root"
+            }
+        }
         return parent
     }
 
