@@ -2,6 +2,7 @@ package com.inspyresoftworks.ti84evo.project
 
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonPayload
 import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * Source-controlled declaration of the Python files that make up an Evo project.
@@ -164,19 +165,23 @@ object EvoProjectManifest {
     }
 
     private fun normalizeSourcePath(sourcePath: String, lineNumber: Int?): String {
-        val normalized = sourcePath.replace('\\', '/').trim()
+        val slashNormalized = sourcePath.replace('\\', '/').trim()
         val location = lineNumber?.let { "$FILE_NAME:$it " } ?: ""
-        if (normalized.isEmpty()) {
+        if (slashNormalized.isEmpty()) {
             throw ConfigurationException("${location}source path cannot be empty")
         }
-        if (normalized.startsWith('/') || DRIVE_PREFIX.matches(normalized)) {
+        if (slashNormalized.startsWith('/') || DRIVE_PREFIX.matches(slashNormalized)) {
             throw ConfigurationException("${location}source path must be relative to the project")
         }
-        if ('=' in normalized) {
+        if ('=' in slashNormalized) {
             throw ConfigurationException("${location}source path cannot contain =")
         }
-        if (!normalized.endsWith(".py", ignoreCase = true)) {
+        if (!slashNormalized.endsWith(".py", ignoreCase = true)) {
             throw ConfigurationException("${location}source file must end in .py")
+        }
+        val normalized = Paths.get(slashNormalized).normalize().toString().replace('\\', '/')
+        if (normalized.startsWith("..")) {
+            throw ConfigurationException("${location}source path escapes the project directory: $sourcePath")
         }
         return normalized
     }
