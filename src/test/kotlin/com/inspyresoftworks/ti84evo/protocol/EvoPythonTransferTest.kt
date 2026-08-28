@@ -46,6 +46,23 @@ class EvoPythonTransferTest {
         assertTrue(peer.fileDescriptors.all { "type=15" in it })
     }
 
+    @Test
+    fun `project upload honors each programs archive target and reports progress`() {
+        val peer = AckingTransport()
+        val progress = mutableListOf<String>()
+        EvoPythonTransfer(peer).uploadProject(
+            listOf(
+                EvoPythonTransfer.Program("RAMAPP", "print(1)", archived = false),
+                EvoPythonTransfer.Program("ARCAPP", "print(2)", archived = true),
+            ),
+            onProgress = { result, completed, total -> progress += "$completed/$total:${result.programName}" },
+        )
+
+        assertTrue("memtarget=0" in peer.fileDescriptors[0])
+        assertTrue("memtarget=1" in peer.fileDescriptors[1])
+        assertEquals(listOf("1/2:RAMAPP", "2/2:ARCAPP"), progress)
+    }
+
     private class AckingTransport : EvoTransport {
         override val description: String = "test"
         val types = mutableListOf<Char>()

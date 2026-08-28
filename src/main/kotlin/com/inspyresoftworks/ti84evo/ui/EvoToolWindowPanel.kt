@@ -21,6 +21,7 @@ import com.inspyresoftworks.ti84evo.protocol.EvoPythonPayload
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
 import com.inspyresoftworks.ti84evo.protocol.EvoVariableDeleteException
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
+import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
 import com.inspyresoftworks.ti84evo.service.EvoDeviceService
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -31,10 +32,9 @@ import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.ImageIcon
 import javax.swing.JButton
-import javax.swing.JFileChooser
 import javax.swing.JPanel
+import javax.swing.JProgressBar
 import javax.swing.JSplitPane
-import javax.swing.filechooser.FileNameExtensionFilter
 import javax.swing.table.DefaultTableModel
 
 /**
@@ -57,6 +57,10 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     ).apply {
         toolTipText = "Installed TI-84 Evo plugin version"
         foreground = com.intellij.ui.JBColor.GRAY
+    }
+    private val uploadProgress = JProgressBar().apply {
+        isVisible = false
+        isStringPainted = true
     }
     private val output = JBTextArea().apply {
         isEditable = false
@@ -133,7 +137,14 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             isOpaque = false
             border = JBUI.Borders.emptyBottom(8)
             add(toolbar.component, BorderLayout.NORTH)
-            add(status.apply { border = JBUI.Borders.empty(5, 4, 0, 4) }, BorderLayout.SOUTH)
+            add(
+                JPanel(BorderLayout()).apply {
+                    isOpaque = false
+                    add(status.apply { border = JBUI.Borders.empty(5, 4, 3, 4) }, BorderLayout.NORTH)
+                    add(uploadProgress, BorderLayout.SOUTH)
+                },
+                BorderLayout.SOUTH,
+            )
         }
 
         val split = JSplitPane(
@@ -382,10 +393,21 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                 ?: String(file.contentsToByteArray(), StandardCharsets.UTF_8)
         }
 
+        val targetChoice = Messages.showDialog(
+            project,
+            "Where should $programName be stored?",
+            "Upload Python to TI-84 Evo",
+            arrayOf("Archive", "RAM", "Cancel"),
+            1,
+            Messages.getQuestionIcon(),
+        )
+        if (targetChoice == 2 || targetChoice == -1) return
+        val archive = targetChoice == 0
+
         showStatus("Uploading ${file.name}…", StatusKind.WORKING)
         output.text = "Packaging ${file.name} as ${programName.uppercase()}…"
 
-        service.uploadPython(source, programName) { result ->
+        service.uploadPython(source, programName, archive) { result ->
             onEdt {
                 result.onSuccess { upload ->
                     showStatus("Uploaded ${upload.programName}", StatusKind.CONNECTED)
@@ -404,51 +426,25 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
 
     private fun configureProject() {
         val root = projectRoot() ?: return
-        // PyCharm 2026.2's VFS chooser can drop known file extensions while
-        // resolving a multi-selection (for example TAYAPPS.py -> TAYAPPS),
-        // then report that the real files cannot be located. JFileChooser
-        // returns the selected filesystem paths directly and avoids that lossy
-        // VFS display-name round trip.
-        val chooser = JFileChooser(root.toFile()).apply {
-            dialogTitle = "Select TI-84 Evo Python Project Files"
-            isMultiSelectionEnabled = true
-            fileSelectionMode = JFileChooser.FILES_ONLY
-            isAcceptAllFileFilterUsed = false
-            fileFilter = FileNameExtensionFilter("Python source files (*.py)", "py")
-        }
-        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return
-        val selected = chooser.selectedFiles
-            .takeIf { it.isNotEmpty() }
-            ?: chooser.selectedFile?.let { arrayOf(it) }
-            ?: emptyArray()
-        if (selected.isEmpty()) return
-
-        val manifestText = runCatching {
-            val relativePaths = selected.map { file ->
-                val path = file.toPath().toAbsolutePath().normalize()
-                if (!path.startsWith(root)) {
-                    throw EvoProjectManifest.ConfigurationException(
-                        "Project files must be inside ${root.toAbsolutePath()}: $path",
-                    )
-                }
-                root.relativize(path).toString().replace('\\', '/')
+        val manifestPath = root.resolve(EvoProjectManifest.FILE_NAME)
+        val existingConfiguration = runCatching {
+            if (Files.isRegularFile(manifestPath)) {
+                EvoProjectManifest.parseConfiguration(Files.readString(manifestPath, StandardCharsets.UTF_8))
+            } else {
+                EvoProjectManifest.Configuration(emptyList())
             }
-            EvoProjectManifest.render(relativePaths)
         }.getOrElse {
             showFailure(it)
             return
         }
-
-        val manifestPath = root.resolve(EvoProjectManifest.FILE_NAME)
-        if (Files.exists(manifestPath)) {
-            val answer = Messages.showYesNoDialog(
-                project,
-                "Replace the existing ${EvoProjectManifest.FILE_NAME} file?",
-                "Configure TI-84 Evo Project",
-                Messages.getWarningIcon(),
-            )
-            if (answer != Messages.YES) return
-        }
+        val dialog = EvoProjectConfigurationDialog(
+            project,
+            root,
+            existingConfiguration.entries,
+            existingConfiguration.alwaysPushAll,
+        )
+        if (!dialog.showAndGet()) return
+        val manifestText = EvoProjectManifest.renderEntries(dialog.entries, dialog.shouldAlwaysPushAll)
 
         runCatching {
             val manifestFile = ApplicationManager.getApplication().runWriteAction<com.intellij.openapi.vfs.VirtualFile> {
@@ -458,18 +454,18 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             }
             FileEditorManager.getInstance(project).openFile(manifestFile, true)
         }.onSuccess {
-            showStatus("Project configured: ${selected.size} files", StatusKind.READY)
+            showStatus("Project configured: ${dialog.entries.size} files", StatusKind.READY)
             output.text = buildString {
-                appendLine("Created ${EvoProjectManifest.FILE_NAME}")
-                appendLine("${selected.size} Python files will be pushed together.")
-                append("Edit calculator names in the manifest if needed, then press Push Project.")
+                appendLine("Saved ${EvoProjectManifest.FILE_NAME}")
+                appendLine("${dialog.entries.size} Python files are configured.")
+                append("Press Push Project to upload files changed since the last successful push.")
             }
         }.onFailure { showFailure(it) }
     }
 
     private fun pushProject() {
         val root = projectRoot() ?: return
-        val programs = runCatching { readProjectPrograms(root) }.getOrElse { error ->
+        val resolvedProject = runCatching { readProjectPrograms(root) }.getOrElse { error ->
             if (error is java.nio.file.NoSuchFileException) {
                 Messages.showWarningDialog(
                     project,
@@ -481,15 +477,72 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             }
             return
         }
+        val configured = resolvedProject.programs
 
-        showStatus("Pushing ${programs.size} project files…", StatusKind.WORKING)
-        output.text = buildString {
-            appendLine("Uploading in one calculator session:")
-            programs.forEach { appendLine("• ${it.programName}") }
+        var pending = if (resolvedProject.alwaysPushAll) {
+            configured
+        } else {
+            val pendingPairs = EvoProjectUploadState.pending(
+                root,
+                configured.map { it.entry to it.source },
+            )
+            val pendingPaths = pendingPairs.mapTo(mutableSetOf()) { it.first.sourcePath }
+            configured.filter { it.entry.sourcePath in pendingPaths }
+        }
+        if (pending.isEmpty()) {
+            showStatus("Project is up to date", StatusKind.READY)
+            output.text = "No changed project files to upload."
+            val choice = Messages.showDialog(
+                project,
+                "All configured files are already up to date.",
+                "TI-84 Evo Project Is Up to Date",
+                arrayOf("Push Anyway", "Cancel"),
+                1,
+                Messages.getInformationIcon(),
+            )
+            if (choice != 0) return
+            pending = configured
         }
 
-        service.uploadPythonProject(programs) { result ->
+        val uploadMode = when {
+            resolvedProject.alwaysPushAll -> "always rebuild"
+            pending.size == configured.size -> "push anyway"
+            else -> "incremental"
+        }
+        showStatus("Pushing ${pending.size} project files ($uploadMode)…", StatusKind.WORKING)
+        uploadProgress.minimum = 0
+        uploadProgress.maximum = pending.size
+        uploadProgress.value = 0
+        uploadProgress.string = "Preparing ${pending.size} file(s)…"
+        uploadProgress.isVisible = true
+        output.text = buildString {
+            appendLine("Uploading project files in one calculator session ($uploadMode):")
+            pending.forEach { appendLine("• ${it.entry.programName} → ${if (it.entry.archived) "Archive" else "RAM"}") }
+            val skipped = configured.size - pending.size
+            if (skipped > 0) appendLine("Skipping $skipped unchanged file(s).")
+        }
+
+        service.uploadPythonProject(
+            pending.map { EvoPythonTransfer.Program(it.entry.programName, it.source, it.entry.archived) },
+            onProgress = { upload, completed, total ->
+                val resolved = pending[completed - 1]
+                runCatching { EvoProjectUploadState.markUploaded(root, resolved.entry, resolved.source) }
+                    .onFailure { e ->
+                        onEdt {
+                            output.text = buildString {
+                                append(output.text)
+                                appendLine("Warning: could not save upload state for ${resolved.entry.programName}: ${e.message ?: e.javaClass.simpleName}")
+                            }
+                        }
+                    }
+                onEdt {
+                    uploadProgress.value = completed
+                    uploadProgress.string = "Uploaded $completed/$total: ${upload.programName}"
+                }
+            },
+        ) { result ->
             onEdt {
+                uploadProgress.isVisible = false
                 result.onSuccess { upload ->
                     showStatus("Pushed ${upload.uploads.size} project files", StatusKind.CONNECTED)
                     output.text = buildString {
@@ -500,22 +553,33 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         appendLine("Total source: ${upload.sourceBytes} bytes")
                         appendLine("Total transfer payload: ${upload.payloadBytes} bytes")
                         appendLine("Total Kermit packets: ${upload.packets}")
-                        append("Target: RAM")
+                        append("Unchanged files skipped: ${configured.size - pending.size}")
                     }
                 }.onFailure { showFailure(it) }
             }
         }
     }
 
-    private fun readProjectPrograms(root: Path): List<EvoPythonTransfer.Program> =
-        ApplicationManager.getApplication().runReadAction<List<EvoPythonTransfer.Program>> {
+    private data class ResolvedProjectProgram(
+        val entry: EvoProjectManifest.Entry,
+        val source: String,
+    )
+
+    private data class ResolvedProject(
+        val programs: List<ResolvedProjectProgram>,
+        val alwaysPushAll: Boolean,
+    )
+
+    private fun readProjectPrograms(root: Path): ResolvedProject =
+        ApplicationManager.getApplication().runReadAction<ResolvedProject> {
             val manifestPath = root.resolve(EvoProjectManifest.FILE_NAME)
             val manifestFile = LocalFileSystem.getInstance().findFileByNioFile(manifestPath)
                 ?: throw java.nio.file.NoSuchFileException(manifestPath.toString())
             val manifestText = FileDocumentManager.getInstance().getDocument(manifestFile)?.text
                 ?: String(manifestFile.contentsToByteArray(), StandardCharsets.UTF_8)
 
-            EvoProjectManifest.parse(manifestText).map { entry ->
+            val configuration = EvoProjectManifest.parseConfiguration(manifestText)
+            val programs = configuration.entries.map { entry ->
                 val sourcePath = EvoProjectManifest.resolveSource(root, entry.sourcePath)
                 val sourceFile = LocalFileSystem.getInstance().findFileByNioFile(sourcePath)
                     ?: throw EvoProjectManifest.ConfigurationException(
@@ -528,8 +592,9 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                 }
                 val source = FileDocumentManager.getInstance().getDocument(sourceFile)?.text
                     ?: String(sourceFile.contentsToByteArray(), StandardCharsets.UTF_8)
-                EvoPythonTransfer.Program(entry.programName, source)
+                ResolvedProjectProgram(entry, source)
             }
+            ResolvedProject(programs, configuration.alwaysPushAll)
         }
 
     private fun projectRoot(): Path? {
@@ -557,6 +622,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
 
     private fun showFailure(error: Throwable) {
+        uploadProgress.isVisible = false
         showStatus("Operation failed", StatusKind.ERROR)
         output.text = when (error) {
             is EvoPythonTransfer.ProjectUploadException -> {
@@ -582,6 +648,23 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             }
             else -> error.stackTraceToString()
         }
+        val message = generateSequence(error) { it.cause }
+            .mapNotNull { it.message }
+            .firstOrNull { it.isNotBlank() }
+            ?: error.javaClass.simpleName
+        val unreachable = generateSequence(error) { it.cause }
+            .mapNotNull { it.message?.lowercase() }
+            .any { "no ti-84 evo" in it || "failed to open" in it || "timed out" in it }
+        Messages.showErrorDialog(
+            project,
+            if (unreachable) {
+                "The calculator could not be reached. Check the USB connection, wake the calculator, " +
+                    "close other calculator-link software, and try again.\n\n$message"
+            } else {
+                message
+            },
+            if (unreachable) "TI-84 Evo Not Reachable" else "TI-84 Evo Operation Failed",
+        )
     }
 
     private fun formatValue(value: Any?): String = when (value) {

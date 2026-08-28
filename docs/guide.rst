@@ -55,32 +55,61 @@ Open a ``.py`` file in the editor and press **Upload current Python file**.
 Enter a calculator program name containing one through eight letters or digits.
 The plugin reads the current editor document, including unsaved changes,
 normalizes the calculator name to uppercase, and uploads a type-15 Python
-program to RAM. Overwrite is enabled, so an existing program with the same
-name may be replaced.
+program to the selected RAM or Archive target. Overwrite is enabled, so an
+existing program with the same name may be replaced.
 
 Multi-file projects
 -------------------
 
-Choose **Configure project** and select the Python files to transfer. The
-plugin writes a ``.ti84-evo-project`` manifest at the project root:
+Choose **Configure project** to open the full configuration window. Add and
+remove Python files, reorder them, edit calculator names, and choose Archive
+per file. The plugin writes a ``.ti84-evo-project`` manifest at the project
+root:
 
 .. code-block:: properties
 
-   lib/drawing.py=DRAW
-   lib/state.py=STATE
-   main.py=MAIN
+   @always-push-all=false
+   lib/drawing.py=DRAW|Archive
+   lib/state.py=STATE|RAM
+   main.py=MAIN|RAM
 
 Paths are project-relative, and selected files must be inside the project
 directory. Calculator names are unique and limited to one through eight letters
 or digits. The generated manifest sorts the selected source paths; edit the line
 order to change the upload order. The file is intended to be checked into source
-control, and the plugin asks before replacing an existing manifest.
+control. **Always rebuild / push all files** can be enabled in the configuration
+window for calculators that are frequently reset or when one project is sent
+to several calculators.
 
-**Push project** sends each declared file in manifest order over one serial
-connection, using one complete transfer transaction per file. Unsaved manifest
-and source editor changes are included. If a later upload fails, the tool window
-identifies the failed program and lists the programs already uploaded. Project
-uploads also target RAM with overwrite enabled.
+**Push project** fingerprints the configured target, calculator name, and
+source, then sends only entries changed since their last successful upload.
+Successful files are recorded individually, so retrying after a partial failure
+does not resend completed files. The optional always-rebuild setting disables
+this filtering. Uploads use one serial connection and the tool window displays
+file-count progress. Unsaved manifest and source editor changes are included.
+If the calculator cannot be reached, the action shows a clear troubleshooting
+pop-up; a partial failure still identifies completed and failed programs.
+
+PowerShell and Explorer sender
+------------------------------
+
+Build ``cliDistZip`` to create a companion command-line distribution in
+``build/distributions``. Extract it and run:
+
+.. code-block:: powershell
+
+   .\ti84-evo.ps1 send                         # changed manifest entries
+   .\ti84-evo.ps1 send --always-rebuild        # every manifest entry
+   .\ti84-evo.ps1 send --archive .\scripts     # applicable .py files
+   .\ti84-evo.ps1 install-context-menu         # current-user Explorer actions
+
+The colored terminal UI shows an upload plan, connection state, aligned
+progress bars, storage targets, and a final summary. The context-menu installer
+adds **Send to TI-84 Evo** for ``.py`` files and folders without requiring
+administrator access. Run ``uninstall-context-menu`` to remove those entries.
+The CLI is packaged separately but remains in this repository so it shares the
+same manifest, incremental state, transport, and protocol implementation as the
+PyCharm plugin.
 
 TI Python editor support
 ------------------------
