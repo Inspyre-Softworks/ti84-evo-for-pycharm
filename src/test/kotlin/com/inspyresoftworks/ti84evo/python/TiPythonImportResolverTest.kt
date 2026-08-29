@@ -18,16 +18,23 @@ import kotlin.test.assertTrue
 
 class TiPythonImportResolverTest : BasePlatformTestCase() {
     fun testFromImportRequestsAutomaticMemberPopupAfterSpace() {
-        val contributor = TiPythonModuleCompletionContributor()
-        val tiFile = myFixture.configureByText(PythonFileType.INSTANCE, "from ti_draw import")
-        val tiPosition = tiFile.findElementAt(tiFile.textLength - 1)
-            ?: error("TI import position was not parsed")
-        assertTrue(contributor.invokeAutoPopup(tiPosition, ' '))
+        val tiSource = "from ti_draw import "
+        assertTrue(
+            TiPythonAutoPopupTypedHandler.shouldScheduleAutoPopup(tiSource, tiSource.length, ' '),
+        )
 
-        val desktopFile = myFixture.configureByText(PythonFileType.INSTANCE, "from pathlib import")
-        val desktopPosition = desktopFile.findElementAt(desktopFile.textLength - 1)
-            ?: error("Desktop import position was not parsed")
-        assertTrue(!contributor.invokeAutoPopup(desktopPosition, ' '))
+        val desktopSource = "from pathlib import "
+        assertTrue(
+            !TiPythonAutoPopupTypedHandler.shouldScheduleAutoPopup(
+                desktopSource,
+                desktopSource.length,
+                ' ',
+            ),
+        )
+        assertTrue(
+            !TiPythonAutoPopupTypedHandler.shouldScheduleAutoPopup(tiSource, tiSource.length, 'x'),
+        )
+        assertTrue(!TiPythonAutoPopupTypedHandler.shouldScheduleAutoPopup("", 0, ' '))
     }
 
     fun testTiModuleNamesCompleteWhileTypingFromImport() {

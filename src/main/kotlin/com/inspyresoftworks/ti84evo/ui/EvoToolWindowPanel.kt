@@ -4,8 +4,6 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.extensions.PluginId
-import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
@@ -48,8 +46,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
 
     private val service = project.getService(EvoDeviceService::class.java)
-    private val installedPluginVersion =
-        PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))?.version ?: "unknown"
+    private val installedPluginVersion = EvoBuildInfo.version
     private val status = JBLabel("Not checked", AllIcons.General.Information, JBLabel.LEADING)
     private val version = JBLabel(
         "v$installedPluginVersion",

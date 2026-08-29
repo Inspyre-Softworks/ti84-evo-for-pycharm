@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.9-SNAPSHOT
+## 0.2.9
 
 - Replace chooser-only project setup with a full configuration window for file order, calculator names, per-entry RAM/Archive targets, and an always-rebuild option.
 - Make normal project pushes incremental with successful-file fingerprints and visible multi-file progress.
@@ -9,6 +9,8 @@
 - Add a separately packaged, color-aware PowerShell CLI and optional current-user Explorer context menus that share the plugin's manifests and upload engine.
 - Add a linked table of contents to the glossary.
 - Ignore generated local IntelliJ Platform state in Git.
+- Eliminate Marketplace verifier failures from stale release bytecode and internal IntelliJ API usage.
+- Migrate the TI import auto-popup trigger to the supported typed-handler API.
 
 ## 0.2.8-SNAPSHOT
 

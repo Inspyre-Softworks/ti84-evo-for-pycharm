@@ -7,7 +7,6 @@ import com.intellij.codeInsight.completion.CompletionResultSet
 import com.intellij.codeInsight.completion.CompletionType
 import com.intellij.codeInsight.lookup.LookupElementBuilder
 import com.intellij.patterns.PlatformPatterns
-import com.intellij.psi.PsiElement
 import com.intellij.util.ProcessingContext
 
 /** Offers calculator-provided modules while a Python import is being typed. */
@@ -36,14 +35,6 @@ class TiPythonModuleCompletionContributor : CompletionContributor() {
         )
     }
 
-    @Suppress("OVERRIDE_DEPRECATION")
-    override fun invokeAutoPopup(position: PsiElement, typeChar: Char): Boolean {
-        if (typeChar != ' ') return false
-        val source = position.containingFile.text
-        val offset = position.textRange.endOffset.coerceIn(0, source.length)
-        return FROM_MEMBER_TRIGGER.matches(linePrefix(source, offset))
-    }
-
     private fun linePrefix(parameters: CompletionParameters): String {
         val source = parameters.originalFile.text
         val offset = parameters.offset.coerceIn(0, source.length)
@@ -63,8 +54,5 @@ class TiPythonModuleCompletionContributor : CompletionContributor() {
     private companion object {
         val FROM_MODULE = Regex("""\s*from\s+[A-Za-z0-9_.]*""")
         val IMPORT_MODULE = Regex("""\s*import\s+(?:[A-Za-z0-9_.]+\s*,\s*)*[A-Za-z0-9_.]*""")
-        val FROM_MEMBER_TRIGGER = Regex(
-            """\s*from\s+(?:${TiPythonStubs.moduleNames.joinToString("|") { Regex.escape(it) }})\s+import""",
-        )
     }
 }

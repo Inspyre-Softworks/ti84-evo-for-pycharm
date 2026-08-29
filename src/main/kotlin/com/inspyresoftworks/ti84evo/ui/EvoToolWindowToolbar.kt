@@ -24,7 +24,6 @@ internal data class EvoToolWindowActions(
 internal object EvoToolWindowToolbar {
     const val PLACE = "TI84Evo.ToolWindow"
 
-    @Suppress("DEPRECATION")
     fun create(target: JComponent, callbacks: EvoToolWindowActions): ActionToolbar {
         val group = DefaultActionGroup().apply {
             add(toolbarAction(
@@ -81,7 +80,6 @@ internal object EvoToolWindowToolbar {
 
         return ActionManager.getInstance().createActionToolbar(PLACE, group, true).apply {
             setTargetComponent(target)
-            setLayoutPolicy(ActionToolbar.AUTO_LAYOUT_POLICY)
             setReservePlaceAutoPopupIcon(true)
             setSecondaryActionsTooltip("More TI-84 Evo actions")
         }
