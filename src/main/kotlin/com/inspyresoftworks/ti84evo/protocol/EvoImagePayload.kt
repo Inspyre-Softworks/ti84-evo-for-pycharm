@@ -20,7 +20,7 @@ object EvoImagePayload {
     )
 
     fun isValidName(name: String): Boolean =
-        name.length in 1..8 && name.first() in 'A'..'Z' && name.all { it in 'A'..'Z' || it.isDigit() || it == '_' }
+        name.length in 1..8 && name.first() in 'A'..'Z' && name.all { it in 'A'..'Z' || it in '0'..'9' || it == '_' }
 
     fun defaultName(fileStem: String): String {
         val cleaned = fileStem.uppercase().filter { it in 'A'..'Z' || it.isDigit() || it == '_' }.take(8)

@@ -1,8 +1,5 @@
 # Changelog
 
-<<<<<<< Updated upstream
-## 0.2.9-SNAPSHOT
-=======
 ## 0.3.0
 
 - Add a read-only CLI calculator directory command showing native type IDs,
@@ -16,7 +13,6 @@
 - Build and attach plugin/CLI distributions on version-changing main-branch pushes, publish the plugin to JetBrains Marketplace, and reuse this section for the GitHub release description and plugin What's New notes.
 
 ## 0.2.9
->>>>>>> Stashed changes
 
 - Replace chooser-only project setup with a full configuration window for file order, calculator names, per-entry RAM/Archive targets, and an always-rebuild option.
 - Make normal project pushes incremental with successful-file fingerprints and visible multi-file progress.

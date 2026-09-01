@@ -24,16 +24,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-<<<<<<< Updated upstream
-      - name: Run tests
-        run: bash ./gradlew test --no-daemon
-
-      - name: Build plugin
-        run: bash ./gradlew buildPlugin --no-daemon
-=======
       - name: Clean, test, build distributions, and verify plugin
         run: bash ./gradlew clean test buildPlugin cliDistZip verifyPluginProjectConfiguration verifyPlugin --no-daemon --no-build-cache
->>>>>>> Stashed changes
 
       - name: Upload plugin artifact
         uses: actions/upload-artifact@v7

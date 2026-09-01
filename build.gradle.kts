@@ -24,19 +24,24 @@ val marketplaceChangeNotes = run {
     val heading = "## $canonicalVersion"
     val start = lines.indexOf(heading)
     require(start >= 0) { "CHANGELOG.md must contain a $heading section for Marketplace update notes" }
-    val bullets = lines.drop(start + 1)
-        .takeWhile { !it.startsWith("## ") }
-        .filter { it.startsWith("- ") }
-        .map { line ->
-            line.removePrefix("- ")
-                .replace("**", "")
-                .replace("`", "")
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
+    val section = lines.drop(start + 1).takeWhile { !it.startsWith("## ") }
+    val bullets = mutableListOf<StringBuilder>()
+    for (line in section) {
+        when {
+            line.startsWith("- ") -> bullets.add(StringBuilder(line.removePrefix("- ")))
+            line.startsWith("  ") && bullets.isNotEmpty() -> bullets.last().append(' ').append(line.trim())
         }
-    require(bullets.isNotEmpty()) { "$heading must contain at least one update note" }
-    bullets.joinToString(separator = "", prefix = "<ul>", postfix = "</ul>") { "<li>$it</li>" }
+    }
+    val rendered = bullets.map { bullet ->
+        bullet.toString()
+            .replace("**", "")
+            .replace("`", "")
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+    }
+    require(rendered.isNotEmpty()) { "$heading must contain at least one update note" }
+    rendered.joinToString(separator = "", prefix = "<ul>", postfix = "</ul>") { "<li>$it</li>" }
 }
 
 // OneDrive can turn generated directories into cloud placeholders while Gradle
@@ -129,8 +134,6 @@ tasks.register<Zip>("cliDistZip") {
 
 kotlin {
     jvmToolchain(25)
-<<<<<<< Updated upstream
-=======
     compilerOptions {
         jvmDefault.set(JvmDefaultMode.NO_COMPATIBILITY)
     }
@@ -145,7 +148,6 @@ tasks.processResources {
         into("META-INF")
         rename { "ti84-evo-license.txt" }
     }
->>>>>>> Stashed changes
 }
 
 intellijPlatform {
