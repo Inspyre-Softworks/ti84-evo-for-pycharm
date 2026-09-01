@@ -49,6 +49,13 @@ their calculator representation and the directory entry supplies the numeric
 variable type. Each selected file uses its own complete transaction so a
 partial failure can be reported accurately.
 
+Individual variables are downloaded through
+``hh01/get/hh01/xfr/var?name=...&type=...``. The complete CBOR envelope can be
+inspected and exported with the Evo checksum restored. Native number, list, and
+matrix payloads are decoded into editable real, fraction, complex, and tabular
+text. Creation/replacement uses the firmware's type-60 ASCII import envelope, so
+the calculator remains responsible for encoding edited values back to native form.
+
 Python upload path
 ------------------
 
@@ -60,6 +67,16 @@ repeat encoding, and element-aligned data chunks, then transfers the payload
 through the Evo variable :term:`endpoint`. The plugin does not treat the
 calculator as a normal desktop filesystem and does not upload the bundled
 editor stubs.
+
+Picture upload path
+-------------------
+
+Desktop raster images are resized with their aspect ratio intact, quantized to
+a configurable palette, converted to RGB565, and encoded as run-length-compressed
+``IM8C`` data inside a type-8 Evo AppVar envelope. The converter reduces the
+dimensions further when necessary to fit the format's 16-bit image-length field.
+The settings live in PyCharm's user-level ``ti84-evo.xml`` rather than a project
+manifest. Native ``.8ci2``, ``.8ca2``, and ``.8xv2`` files bypass conversion.
 
 The protocol code is independently implemented in Kotlin. The public
 `Evo-Programming/evo_usb_py implementation

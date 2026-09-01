@@ -16,6 +16,8 @@
         <completion.contributor
             language="Python"
             implementationClass="com.inspyresoftworks.ti84evo.python.TiPythonModuleCompletionContributor" />
+        <typedHandler
+            implementation="com.inspyresoftworks.ti84evo.python.TiPythonAutoPopupTypedHandler" />
         <toolWindow
             id="TI-84 Evo"
             icon="/icons/toolWindowIcon.svg"

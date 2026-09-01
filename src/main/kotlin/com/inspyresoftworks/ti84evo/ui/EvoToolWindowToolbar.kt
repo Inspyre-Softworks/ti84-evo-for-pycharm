@@ -15,7 +15,9 @@ internal data class EvoToolWindowActions(
     val browseFiles: () -> Unit,
     val captureScreen: () -> Unit,
     val uploadCurrentPython: () -> Unit,
+    val uploadPicture: () -> Unit,
     val configureProject: () -> Unit,
+    val configureTransfers: () -> Unit,
     val pushProject: () -> Unit,
     val showAbout: () -> Unit,
 )
@@ -24,7 +26,6 @@ internal data class EvoToolWindowActions(
 internal object EvoToolWindowToolbar {
     const val PLACE = "TI84Evo.ToolWindow"
 
-    @Suppress("DEPRECATION")
     fun create(target: JComponent, callbacks: EvoToolWindowActions): ActionToolbar {
         val group = DefaultActionGroup().apply {
             add(toolbarAction(
@@ -59,6 +60,12 @@ internal object EvoToolWindowToolbar {
                 callbacks.uploadCurrentPython,
             ))
             add(toolbarAction(
+                "Upload picture",
+                "Convert and upload an image or send an existing Evo picture file",
+                AllIcons.FileTypes.Image,
+                callbacks.uploadPicture,
+            ))
+            add(toolbarAction(
                 "Push project",
                 "Upload every file declared in the TI-84 Evo project manifest",
                 AllIcons.Actions.RunAll,
@@ -72,6 +79,12 @@ internal object EvoToolWindowToolbar {
                 callbacks.configureProject,
             ))
             add(toolbarAction(
+                "Transfer settings",
+                "Configure user-level image optimization settings",
+                AllIcons.General.Settings,
+                callbacks.configureTransfers,
+            ))
+            add(toolbarAction(
                 "About TI-84 Evo",
                 "Show the installed plugin version and build information",
                 AllIcons.General.Information,
@@ -81,7 +94,6 @@ internal object EvoToolWindowToolbar {
 
         return ActionManager.getInstance().createActionToolbar(PLACE, group, true).apply {
             setTargetComponent(target)
-            setLayoutPolicy(ActionToolbar.AUTO_LAYOUT_POLICY)
             setReservePlaceAutoPopupIcon(true)
             setSecondaryActionsTooltip("More TI-84 Evo actions")
         }

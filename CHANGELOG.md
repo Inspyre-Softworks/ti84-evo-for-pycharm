@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.2.9-SNAPSHOT
+## 0.3.0
+
+- Add a read-only CLI calculator directory command showing native type IDs,
+  byte sizes, and RAM or Archive locations.
+- Preserve existing List Editor columns when replacing lists by converting the
+  edited text through a temporary native list and applying a native replacement.
+- Add GitHub, Read the Docs, and bundled-license actions to the About window.
+- Convert PNG, JPEG, GIF, and BMP files to compressed Evo Python image variables and upload native `.8ci2`, `.8ca2`, and `.8xv2` files unchanged.
+- Add user-level image optimization settings for maximum dimensions and palette size, persisted outside individual projects.
+- Add lossless variable inspection/export plus native value decoding and pre-populated creation/replacement editors for calculator numbers, lists, and matrices.
+- Build and attach plugin/CLI distributions on version-changing main-branch pushes, publish the plugin to JetBrains Marketplace, and reuse this section for the GitHub release description and plugin What's New notes.
+
+## 0.2.9
 
 - Replace chooser-only project setup with a full configuration window for file order, calculator names, per-entry RAM/Archive targets, and an always-rebuild option.
 - Make normal project pushes incremental with successful-file fingerprints and visible multi-file progress.

@@ -2,6 +2,7 @@ import org.jetbrains.intellij.platform.gradle.tasks.BuildPluginTask
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.bundling.Zip
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 
 plugins {
     kotlin("jvm") version "2.4.10"
@@ -19,6 +20,30 @@ require(canonicalVersion.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-
 version = canonicalVersion
 val pluginDistributionDirectory = layout.buildDirectory.dir("distributions")
 val currentPluginZipName = "${rootProject.name}-${project.version}.zip"
+val marketplaceChangeNotes = run {
+    val lines = layout.projectDirectory.file("CHANGELOG.md").asFile.readLines()
+    val heading = "## $canonicalVersion"
+    val start = lines.indexOf(heading)
+    require(start >= 0) { "CHANGELOG.md must contain a $heading section for Marketplace update notes" }
+    val section = lines.drop(start + 1).takeWhile { !it.startsWith("## ") }
+    val bullets = mutableListOf<StringBuilder>()
+    for (line in section) {
+        when {
+            line.startsWith("- ") -> bullets.add(StringBuilder(line.removePrefix("- ")))
+            line.startsWith("  ") && bullets.isNotEmpty() -> bullets.last().append(' ').append(line.trim())
+        }
+    }
+    val rendered = bullets.map { bullet ->
+        bullet.toString()
+            .replace("**", "")
+            .replace("`", "")
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+    }
+    require(rendered.isNotEmpty()) { "$heading must contain at least one update note" }
+    rendered.joinToString(separator = "", prefix = "<ul>", postfix = "</ul>") { "<li>$it</li>" }
+}
 
 // OneDrive can turn generated directories into cloud placeholders while Gradle
 // is replacing them. Keep generated output local for this specific checkout
@@ -110,6 +135,20 @@ tasks.register<Zip>("cliDistZip") {
 
 kotlin {
     jvmToolchain(25)
+    compilerOptions {
+        jvmDefault.set(JvmDefaultMode.NO_COMPATIBILITY)
+    }
+}
+
+tasks.processResources {
+    from(layout.projectDirectory.file("VERSION")) {
+        into("META-INF")
+        rename { "ti84-evo-version.txt" }
+    }
+    from(layout.projectDirectory.file("LICENSE")) {
+        into("META-INF")
+        rename { "ti84-evo-license.txt" }
+    }
 }
 
 intellijPlatform {
@@ -130,6 +169,26 @@ intellijPlatform {
         }
 
         description = "Native TI-84 Evo integration for PyCharm."
+        changeNotes = marketplaceChangeNotes
+    }
+
+    pluginVerification {
+        ides {
+            recommended()
+        }
+    }
+
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN").filter(String::isNotBlank)
+        privateKey = providers.environmentVariable("PRIVATE_KEY").filter(String::isNotBlank)
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD").filter(String::isNotBlank)
+    }
+
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN").filter(String::isNotBlank)
+        channels = listOf(
+            canonicalVersion.substringAfter('-', "").substringBefore('.').ifEmpty { "default" },
+        )
     }
 }
 
