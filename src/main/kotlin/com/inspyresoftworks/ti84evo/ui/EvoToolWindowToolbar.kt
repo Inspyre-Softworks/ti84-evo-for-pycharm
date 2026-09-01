@@ -15,7 +15,9 @@ internal data class EvoToolWindowActions(
     val browseFiles: () -> Unit,
     val captureScreen: () -> Unit,
     val uploadCurrentPython: () -> Unit,
+    val uploadPicture: () -> Unit,
     val configureProject: () -> Unit,
+    val configureTransfers: () -> Unit,
     val pushProject: () -> Unit,
     val showAbout: () -> Unit,
 )
@@ -59,6 +61,12 @@ internal object EvoToolWindowToolbar {
                 callbacks.uploadCurrentPython,
             ))
             add(toolbarAction(
+                "Upload picture",
+                "Convert and upload an image or send an existing Evo picture file",
+                AllIcons.FileTypes.Image,
+                callbacks.uploadPicture,
+            ))
+            add(toolbarAction(
                 "Push project",
                 "Upload every file declared in the TI-84 Evo project manifest",
                 AllIcons.Actions.RunAll,
@@ -70,6 +78,12 @@ internal object EvoToolWindowToolbar {
                 "Choose the Python files included in the calculator project",
                 AllIcons.General.Settings,
                 callbacks.configureProject,
+            ))
+            add(toolbarAction(
+                "Transfer settings",
+                "Configure user-level image optimization settings",
+                AllIcons.General.Settings,
+                callbacks.configureTransfers,
             ))
             add(toolbarAction(
                 "About TI-84 Evo",

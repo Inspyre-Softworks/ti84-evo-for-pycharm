@@ -45,8 +45,29 @@ Select one or more rows in the calculator file table and press **Delete
 selected**. The confirmation lists each selected variable's name, type, and RAM
 or Archive location. The action cannot be undone. If a multi-file deletion fails
 partway through, the table removes the variables already deleted and the output
-identifies both the completed deletions and the variable that failed. Download
-and rename actions remain future work.
+identifies both the completed deletions and the variable that failed.
+
+Select one row and press **View / edit** to read its complete native Evo variable
+envelope. The viewer can save a lossless calculator file for every variable type.
+Native numbers, lists, and matrices are decoded to real, fraction, complex, list,
+or matrix text. Their **Replace Value** action opens a pre-populated editor;
+**Add variable** creates new values of those three types using comma/space-separated
+input. Existing lists are replaced through a native type-1 payload so their
+columns remain registered in the calculator's List Editor. Other formats remain
+available for raw inspection and export while their
+editable binary formats continue to be documented.
+
+Picture upload
+--------------
+
+**Upload picture** accepts PNG, JPEG, GIF, and BMP images and converts them to a
+palette-based, run-length-compressed Evo Python image variable. The variable can be
+loaded with ``ti_image.load_image(name)``. Existing ``.8ci2``, ``.8ca2``, and ``.8xv2``
+files are sent unchanged.
+
+The **Transfer settings** window controls whether conversion reduces images, the
+maximum width and height, and the maximum palette size. These preferences are saved
+in PyCharm's user configuration and apply across projects.
 
 Single-file upload
 ------------------
@@ -93,18 +114,28 @@ pop-up; a partial failure still identifies completed and failed programs.
 PowerShell and Explorer sender
 ------------------------------
 
-Build ``cliDistZip`` to create a companion command-line distribution in
-``build/distributions``. Extract it and run:
+Install Java 25, then download the CLI ZIP from the matching GitHub release or
+build ``cliDistZip`` to create it in ``build/distributions``. Extract the ZIP,
+keep ``ti84-evo.ps1`` beside ``ti84-evo-cli.jar``, and run from that folder:
 
 .. code-block:: powershell
 
+   .\ti84-evo.ps1 --help
+   .\ti84-evo.ps1 list-files                       # names, types, sizes, and memory
+   .\ti84-evo.ps1 send .\main.py               # one Python file
    .\ti84-evo.ps1 send                         # changed manifest entries
    .\ti84-evo.ps1 send --always-rebuild        # every manifest entry
    .\ti84-evo.ps1 send --archive .\scripts     # applicable .py files
    .\ti84-evo.ps1 install-context-menu         # current-user Explorer actions
 
+With no path, ``send`` uses ``.ti84-evo-project`` in the current directory. A
+file or directory argument sends applicable Python files directly, while
+``--archive`` or ``--ram`` overrides the calculator destination.
+
 The colored terminal UI shows an upload plan, connection state, aligned
-progress bars, storage targets, and a final summary. The context-menu installer
+progress bars, storage targets, and a final summary. ``list-files`` performs a
+read-only directory query and displays each calculator variable's numeric type,
+size, and RAM or Archive location. The context-menu installer
 adds **Send to TI-84 Evo** for ``.py`` files and folders without requiring
 administrator access. Run ``uninstall-context-menu`` to remove those entries.
 The CLI is packaged separately but remains in this repository so it shares the

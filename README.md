@@ -40,6 +40,11 @@ are on GitHub.
 - Adds a **TI-84 Evo** PyCharm tool window with Refresh devices, Read attributes,
   a sortable RAM/Archive file browser with confirmation-protected selected-file
   deletion, Capture screen, single-file upload, and multi-file project push actions.
+- Views and exports every calculator variable in its native Evo representation,
+  and creates or replaces numbers, lists, and matrices through the Evo ASCII importer.
+- Converts PNG, JPEG, GIF, and BMP images to compressed Evo Python image variables;
+  user-level transfer settings control maximum dimensions and palette size.
+- Sends existing `.8ci2`, `.8ca2`, and `.8xv2` picture files without conversion.
 - Uses a native icon toolbar with tooltips, grouped actions, persistent status, and an explicit overflow menu at narrow tool-window widths.
 - Packages dedicated 40×40 light and dark SVG logos for the IDE plugin manager and JetBrains Marketplace.
 - Bundles typed API stubs for the complete `ti_*` module family: `ti_draw`, `ti_image`, `ti_system`, `ti_plotlib`, `ti_hub`, and `ti_rover`.
@@ -50,6 +55,8 @@ are on GitHub.
   multi-file progress and clear calculator-connection failure pop-ups.
 - Packages a companion colored PowerShell CLI with optional current-user
   Explorer context menus for sending Python files, folders, or manifests.
+- Lists calculator files from the CLI with their native type IDs, sizes, and
+  RAM or Archive locations.
 - Packages source into the Evo Python AppVar + CBOR representation before transfer; it does not send loose desktop text as though the calculator had a normal filesystem.
 - Uses negotiated Kermit long packets for host-to-calculator transfers while preserving the proven read-only resource path for screenshots and attributes.
 
@@ -77,6 +84,12 @@ the included Gradle 9.6.0 wrapper.
 8. Open a `.py` file in the editor and press **Upload current Python file**.
    Confirm the 1–8 character calculator program name and choose RAM or Archive.
    The current implementation overwrites an existing program with the same name.
+9. Use **Upload picture** for a desktop image or an existing Evo picture file.
+   **Transfer settings** stores image limits globally for PyCharm, not in the project.
+10. In **Calculator Files**, select a row and press **View / edit** to inspect or
+    export it. Native numbers, lists, and matrices are decoded, and **Replace Value**
+    opens their current contents in a pre-populated editor. **Add variable** creates a
+    new value of one of those types.
 
 ### Push a multi-file project
 
@@ -106,14 +119,25 @@ it and records files that were already uploaded so a retry skips them.
 
 ### PowerShell and Explorer
 
-Build and extract the companion distribution:
+Install Java 25, download and extract `ti84-evo-cli-<version>.zip` from the
+matching GitHub release, then open PowerShell in the extracted folder. Keep
+`ti84-evo.ps1` next to `ti84-evo-cli.jar` and run:
 
 ```powershell
-.\gradlew.bat cliDistZip
+.\ti84-evo.ps1 --help
+.\ti84-evo.ps1 list-files
+.\ti84-evo.ps1 send .\main.py
+.\ti84-evo.ps1 send --archive .\scripts
 .\ti84-evo.ps1 send
 .\ti84-evo.ps1 send --always-rebuild
 .\ti84-evo.ps1 install-context-menu
 ```
+
+With no path, `send` reads the `.ti84-evo-project` manifest in the current
+folder. A file or folder path sends the applicable Python files directly;
+`--archive` or `--ram` overrides their destination. To build the ZIP locally,
+run `.\gradlew.bat cliDistZip` and extract the result from
+`build\distributions`.
 
 The CLI stays in this repository as a separate artifact, sharing the plugin's
 protocol, manifest, Archive support, and incremental upload state. The optional
@@ -204,6 +228,6 @@ key = ti_system.wait_key()
 
 ## Next milestone
 
-1. add download and rename actions;
+1. add calculator-variable rename actions and editable TI-BASIC program support;
 2. add a real **TI-84 Evo** run configuration that pushes and launches the selected Python project;
 3. perform physical-device acceptance of Archive, incremental multi-file, and CLI upload paths.

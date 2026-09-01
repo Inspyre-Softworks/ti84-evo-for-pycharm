@@ -1,0 +1,184 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  detect-version-change:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Check out source and history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect VERSION change
+        id: version
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          version="$(tr -d '\r\n' < VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error file=VERSION::VERSION must contain a semantic version; got '$version'"
+            exit 1
+          fi
+
+          previous=""
+          if [[ -n "$BEFORE_SHA" && ! "$BEFORE_SHA" =~ ^0+$ ]] && git cat-file -e "$BEFORE_SHA:VERSION" 2>/dev/null; then
+            previous="$(git show "$BEFORE_SHA:VERSION" | tr -d '\r\n')"
+          fi
+
+          changed=false
+          if [[ "$version" != "$previous" ]]; then
+            changed=true
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release detection"
+            echo "- Previous version: ${previous:-not present}"
+            echo "- Current version: $version"
+            echo "- Release required: $changed"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate matching changelog section
+        if: steps.version.outputs.changed == 'true'
+        run: python3 scripts/extract_release_notes.py "${{ steps.version.outputs.version }}" > /dev/null
+
+  release:
+    needs: detect-version-change
+    if: needs.detect-version-change.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.detect-version-change.outputs.version }}
+      PLUGIN_ZIP: build/distributions/ti84-evo-for-pycharm-${{ needs.detect-version-change.outputs.version }}.zip
+      CLI_ZIP: build/distributions/ti84-evo-cli-${{ needs.detect-version-change.outputs.version }}.zip
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Build, test, and verify release distributions
+        run: bash ./gradlew clean test buildPlugin cliDistZip verifyPluginProjectConfiguration verifyPlugin --no-daemon --no-build-cache
+
+      - name: Prepare release notes and validate artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/extract_release_notes.py "$VERSION" > release-notes.md
+          test -s release-notes.md
+          test -f "$PLUGIN_ZIP"
+          test -f "$CLI_ZIP"
+          grep -F '<change-notes>' build/resources/main/META-INF/plugin.xml > /dev/null
+
+      - name: Upload plugin workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ti84-evo-plugin-${{ env.VERSION }}
+          path: ${{ env.PLUGIN_ZIP }}
+          if-no-files-found: error
+
+      - name: Upload CLI workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ti84-evo-cli-${{ env.VERSION }}
+          path: ${{ env.CLI_ZIP }}
+          if-no-files-found: error
+
+      - name: Create or refresh draft GitHub release
+        id: github-release
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker='<!-- ti84-evo-marketplace-published -->'
+          already_published=false
+          marketplace_published=false
+
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            is_draft="$(gh release view "$VERSION" --json isDraft --jq '.isDraft')"
+            if [[ "$is_draft" == 'false' ]]; then
+              already_published=true
+            else
+              body="$(gh release view "$VERSION" --json body --jq '.body')"
+              if grep -Fq "$marker" <<< "$body"; then
+                marketplace_published=true
+              fi
+              gh release edit "$VERSION" --title "TI-84 Evo $VERSION"
+              gh release upload "$VERSION" "$PLUGIN_ZIP" "$CLI_ZIP" --clobber
+            fi
+          else
+            gh release create "$VERSION" "$PLUGIN_ZIP" "$CLI_ZIP" \
+              --draft \
+              --target "$GITHUB_SHA" \
+              --title "TI-84 Evo $VERSION" \
+              --notes-file release-notes.md
+          fi
+
+          echo "already-published=$already_published" >> "$GITHUB_OUTPUT"
+          echo "marketplace-published=$marketplace_published" >> "$GITHUB_OUTPUT"
+
+      - name: Require JetBrains Marketplace token
+        if: steps.github-release.outputs.already-published != 'true' && steps.github-release.outputs.marketplace-published != 'true'
+        shell: bash
+        env:
+          PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+        run: |
+          if [[ -z "$PUBLISH_TOKEN" ]]; then
+            echo "::error::Add the JetBrains Marketplace permanent token as the PUBLISH_TOKEN repository secret."
+            exit 1
+          fi
+
+      - name: Publish plugin to JetBrains Marketplace
+        if: steps.github-release.outputs.already-published != 'true' && steps.github-release.outputs.marketplace-published != 'true'
+        env:
+          PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+          CERTIFICATE_CHAIN: ${{ secrets.CERTIFICATE_CHAIN }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.PRIVATE_KEY_PASSWORD }}
+        run: bash ./gradlew publishPlugin --no-daemon --no-build-cache
+
+      - name: Record successful Marketplace publication in draft
+        if: steps.github-release.outputs.already-published != 'true' && steps.github-release.outputs.marketplace-published != 'true'
+        shell: bash
+        run: |
+          cp release-notes.md release-notes-with-state.md
+          printf '\n\n<!-- ti84-evo-marketplace-published -->\n' >> release-notes-with-state.md
+          gh release edit "$VERSION" --notes-file release-notes-with-state.md
+
+      - name: Publish GitHub release
+        if: steps.github-release.outputs.already-published != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          flags=(--draft=false --title "TI-84 Evo $VERSION" --notes-file release-notes.md)
+          if [[ "$VERSION" == *-* ]]; then
+            flags+=(--prerelease --latest=false)
+          else
+            flags+=(--latest)
+          fi
+          gh release edit "$VERSION" "${flags[@]}"

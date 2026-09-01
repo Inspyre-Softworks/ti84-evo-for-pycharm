@@ -20,9 +20,12 @@ import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonPayload
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
 import com.inspyresoftworks.ti84evo.protocol.EvoVariableDeleteException
+import com.inspyresoftworks.ti84evo.protocol.EvoImagePayload
+import com.inspyresoftworks.ti84evo.protocol.EvoVariablePayload
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
 import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
 import com.inspyresoftworks.ti84evo.service.EvoDeviceService
+import com.inspyresoftworks.ti84evo.settings.EvoApplicationSettings
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
@@ -32,10 +35,12 @@ import java.nio.file.Files
 import java.nio.file.Path
 import javax.swing.ImageIcon
 import javax.swing.JButton
+import javax.swing.JFileChooser
 import javax.swing.JPanel
 import javax.swing.JProgressBar
 import javax.swing.JSplitPane
 import javax.swing.table.DefaultTableModel
+import javax.swing.filechooser.FileNameExtensionFilter
 
 /**
  * TI-84 Evo tool-window UI.
@@ -48,8 +53,13 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
 
     private val service = project.getService(EvoDeviceService::class.java)
+<<<<<<< Updated upstream
     private val installedPluginVersion =
         PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))?.version ?: "unknown"
+=======
+    private val applicationSettings = ApplicationManager.getApplication().getService(EvoApplicationSettings::class.java)
+    private val installedPluginVersion = EvoBuildInfo.version
+>>>>>>> Stashed changes
     private val status = JBLabel("Not checked", AllIcons.General.Information, JBLabel.LEADING)
     private val version = JBLabel(
         "v$installedPluginVersion",
@@ -96,6 +106,15 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         toolTipText = "Delete the selected calculator files after confirmation"
         addActionListener { deleteSelectedFiles() }
     }
+    private val viewSelectedButton = JButton("View / edit", AllIcons.Actions.Show).apply {
+        isEnabled = false
+        toolTipText = "Inspect or export the selected variable; replace supported numeric data"
+        addActionListener { viewSelectedVariable() }
+    }
+    private val addVariableButton = JButton("Add variable", AllIcons.General.Add).apply {
+        toolTipText = "Create a calculator number, list, or matrix"
+        addActionListener { addVariable() }
+    }
     private val screenPane = JBScrollPane(screen)
     private val directoryPane = JBScrollPane(directoryTable)
     private val directoryContent = JPanel(BorderLayout()).apply {
@@ -104,6 +123,10 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         add(
             JPanel(FlowLayout(FlowLayout.LEFT, 0, 4)).apply {
                 isOpaque = false
+                add(viewSelectedButton)
+                add(javax.swing.Box.createHorizontalStrut(8))
+                add(addVariableButton)
+                add(javax.swing.Box.createHorizontalStrut(8))
                 add(deleteSelectedButton)
             },
             BorderLayout.SOUTH,
@@ -128,7 +151,9 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                 browseFiles = ::browseFiles,
                 captureScreen = ::captureScreen,
                 uploadCurrentPython = ::uploadCurrentPython,
+                uploadPicture = ::uploadPicture,
                 configureProject = ::configureProject,
+                configureTransfers = ::configureTransfers,
                 pushProject = ::pushProject,
                 showAbout = ::showAbout,
             ),
@@ -356,6 +381,140 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             !deletionInProgress &&
                 directoryEntries.isNotEmpty() &&
                 directoryTable.selectedRowCount > 0
+        viewSelectedButton.isEnabled = !deletionInProgress && directoryTable.selectedRowCount == 1
+    }
+
+    private fun viewSelectedVariable() {
+        val row = directoryTable.selectedRow.takeIf { it >= 0 } ?: return
+        val entry = directoryEntries[directoryTable.convertRowIndexToModel(row)]
+        showStatus("Reading ${entry.name}…", StatusKind.WORKING)
+        service.readVariable(entry) { result ->
+            onEdt {
+                result.onSuccess { raw ->
+                    showStatus("Read ${entry.name}", StatusKind.CONNECTED)
+                    val dialog = EvoVariableContentsDialog(project, entry, raw)
+                    dialog.show()
+                    if (dialog.shouldReplace) dialog.editableValue?.let(::replaceVariable)
+                }.onFailure { showFailure(it) }
+            }
+        }
+    }
+
+    private fun addVariable() {
+        val dialog = EvoVariableEditorDialog(project)
+        if (!dialog.showAndGet()) return
+        sendEditableVariable(dialog.editedValue)
+    }
+
+    private fun replaceVariable(initial: EvoVariablePayload.EditableValue) {
+        val editableName = when (initial.kind) {
+            EvoVariablePayload.Kind.MATRIX -> initial.name.removeSurrounding("[", "]")
+            else -> initial.name
+        }
+        val dialog = EvoVariableEditorDialog(
+            project = project,
+            initialKind = initial.kind,
+            initialName = editableName,
+            initialArchived = initial.archived,
+            initialValue = initial.value,
+            replacing = true,
+        )
+        if (!dialog.showAndGet()) return
+        sendEditableVariable(dialog.editedValue)
+    }
+
+    private fun sendEditableVariable(value: EvoVariablePayload.EditableValue) {
+        showStatus("Sending ${value.kind.wireName.lowercase()} ${value.name}…", StatusKind.WORKING)
+        output.text = "Preparing ${value.kind.wireName.lowercase()} ${value.name} for the calculator…"
+        service.uploadEditableVariable(value) { result ->
+            onEdt {
+                result.onSuccess { upload ->
+                    showStatus("Sent ${upload.description}", StatusKind.CONNECTED)
+                    output.text = buildString {
+                        appendLine("Variable upload successful")
+                        appendLine("Variable: ${upload.description}")
+                        appendLine("Payload: ${upload.payloadBytes} bytes")
+                        appendLine("Kermit packets: ${upload.packets}")
+                        if (upload.preservedListEditor) {
+                            appendLine("List Editor: existing column registration preserved")
+                        }
+                        append("Target: ${if (upload.archived) "Archive" else "RAM"}")
+                    }
+                }.onFailure { showFailure(it) }
+            }
+        }
+    }
+
+    private fun uploadPicture() {
+        val chooser = JFileChooser(project.basePath?.let { java.io.File(it) }).apply {
+            dialogTitle = "Upload Picture to TI-84 Evo"
+            fileSelectionMode = JFileChooser.FILES_ONLY
+            isAcceptAllFileFilterUsed = false
+            addChoosableFileFilter(FileNameExtensionFilter("Desktop images (*.png, *.jpg, *.gif, *.bmp)", "png", "jpg", "jpeg", "gif", "bmp"))
+            addChoosableFileFilter(FileNameExtensionFilter("Evo variable files (*.8ci2, *.8ca2, *.8xv2)", "8ci2", "8ca2", "8xv2"))
+        }
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return
+        val path = chooser.selectedFile.toPath()
+        val extension = chooser.selectedFile.extension.lowercase()
+        val archiveChoice = Messages.showDialog(
+            project,
+            "Where should ${chooser.selectedFile.name} be stored?",
+            "Upload Picture to TI-84 Evo",
+            arrayOf("Archive", "RAM", "Cancel"),
+            0,
+            Messages.getQuestionIcon(),
+        )
+        if (archiveChoice !in 0..1) return
+        val archived = archiveChoice == 0
+
+        if (extension in setOf("8ci2", "8ca2", "8xv2")) {
+            showStatus("Uploading ${chooser.selectedFile.name}…", StatusKind.WORKING)
+            service.uploadVariableFile(path, archived) { result ->
+                onEdt {
+                    result.onSuccess { upload ->
+                        showStatus("Uploaded ${upload.description}", StatusKind.CONNECTED)
+                        output.text = "Uploaded ${upload.description}\n${upload.payloadBytes} bytes, ${upload.packets} packets\nTarget: ${if (archived) "Archive" else "RAM"}"
+                    }.onFailure { showFailure(it) }
+                }
+            }
+            return
+        }
+
+        val defaultName = EvoImagePayload.defaultName(chooser.selectedFile.nameWithoutExtension)
+        val name = Messages.showInputDialog(
+            project,
+            "Python image variable name (1–8 letters, digits, or underscores):",
+            "Upload Picture to TI-84 Evo",
+            Messages.getQuestionIcon(),
+            defaultName,
+            object : InputValidator {
+                override fun checkInput(inputString: String): Boolean = EvoImagePayload.isValidName(inputString.uppercase())
+                override fun canClose(inputString: String): Boolean = checkInput(inputString)
+            },
+        ) ?: return
+
+        showStatus("Converting ${chooser.selectedFile.name}…", StatusKind.WORKING)
+        output.text = "Converting ${chooser.selectedFile.name} with your image transfer settings…"
+        service.uploadImage(path, name.uppercase(), archived, applicationSettings.snapshot()) { result ->
+            onEdt {
+                result.onSuccess { upload ->
+                    showStatus("Uploaded image ${upload.image.name}", StatusKind.CONNECTED)
+                    output.text = buildString {
+                        appendLine("Picture upload successful")
+                        appendLine("Variable: ${upload.image.name}")
+                        appendLine("Original: ${upload.image.sourceWidth}×${upload.image.sourceHeight}")
+                        appendLine("Converted: ${upload.image.width}×${upload.image.height}, ${upload.image.colors} colors")
+                        appendLine("Transfer payload: ${upload.transfer.payloadBytes} bytes")
+                        appendLine("Kermit packets: ${upload.transfer.packets}")
+                        append("Target: ${if (archived) "Archive" else "RAM"}")
+                    }
+                }.onFailure { showFailure(it) }
+            }
+        }
+    }
+
+    private fun configureTransfers() {
+        EvoTransferSettingsDialog(project, applicationSettings).show()
     }
 
     private fun uploadCurrentPython() {
@@ -607,18 +766,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
 
     internal fun showAbout() {
-        val buildType = if (installedPluginVersion.endsWith("-SNAPSHOT")) "Development snapshot" else "Release"
-        Messages.showInfoMessage(
-            project,
-            buildString {
-                appendLine("TI-84 Evo for PyCharm")
-                appendLine()
-                appendLine("Version: $installedPluginVersion")
-                appendLine("Build: $buildType")
-                append("Plugin ID: $PLUGIN_ID")
-            },
-            "About TI-84 Evo",
-        )
+        EvoAboutDialog(project, installedPluginVersion, PLUGIN_ID).show()
     }
 
     private fun showFailure(error: Throwable) {

@@ -50,6 +50,16 @@ class EvoLinkTest {
     }
 
     @Test
+    fun `variable download resource preserves its type and tokenized name`() {
+        val entry = EvoDirectoryEntry("L1", 1, 24, false, tokenWords(0xE401))
+
+        assertEquals(
+            "var?name=%EE%90%81&type=1",
+            buildVariableResourceName(entry),
+        )
+    }
+
+    @Test
     fun `delete variables sends one transaction for each selected entry`() {
         val ramName = tokenWords(0xE811, 0xE800, 0xE80C)
         val archiveName = tokenWords(0xE800, 0xE811, 0xE802)

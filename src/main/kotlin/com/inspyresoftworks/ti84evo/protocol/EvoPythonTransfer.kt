@@ -51,6 +51,22 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
         overwrite: Boolean = true,
     ): Result {
         val built = EvoPythonPayload.build(programName, source)
+        val packetCount = uploadPayload(
+            EvoPythonPayload.transferUrl(built.programName, archive, overwrite),
+            built.bytes,
+        )
+
+        return Result(
+            programName = built.programName,
+            sourceBytes = built.sourceBytes,
+            payloadBytes = built.bytes.size,
+            packets = packetCount,
+            archived = archive,
+        )
+    }
+
+    /** Sends an already-built Evo variable envelope over a complete Kermit transaction. */
+    internal fun uploadPayload(url: String, payload: ByteArray): Int {
         val session = KermitPacketCodec.Session()
         var sequence = 0
         var packetCount = 0
@@ -62,27 +78,12 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
         }
 
         send('S', sendInit)
-        send(
-            'F',
-            EvoPythonPayload.transferUrl(built.programName, archive, overwrite)
-                .toByteArray(StandardCharsets.UTF_8),
-        )
-        send('A', fileAttributes(built.bytes.size))
-
-        for (chunk in KermitPacketCodec.encodeDataChunks(built.bytes, session.dataChunkSize)) {
-            send('D', chunk)
-        }
-
+        send('F', url.toByteArray(StandardCharsets.UTF_8))
+        send('A', fileAttributes(payload.size))
+        for (chunk in KermitPacketCodec.encodeDataChunks(payload, session.dataChunkSize)) send('D', chunk)
         send('Z')
         send('B')
-
-        return Result(
-            programName = built.programName,
-            sourceBytes = built.sourceBytes,
-            payloadBytes = built.bytes.size,
-            packets = packetCount,
-            archived = archive,
-        )
+        return packetCount
     }
 
     /** Uploads every declared program over the already-open transport. */

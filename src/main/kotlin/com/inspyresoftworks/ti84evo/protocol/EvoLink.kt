@@ -31,6 +31,9 @@ class EvoLink(transport: EvoTransport) {
         getResource("hh01/inf/res?name=directory&gotohome=1"),
     )
 
+    fun getVariable(entry: EvoDirectoryEntry): ByteArray =
+        getResource("hh01/xfr/${buildVariableResourceName(entry)}")
+
     fun deleteVariables(entries: List<EvoDirectoryEntry>): List<EvoDirectoryEntry> {
         val deletedEntries = mutableListOf<EvoDirectoryEntry>()
 
@@ -104,7 +107,13 @@ internal fun buildDeleteRequest(entry: EvoDirectoryEntry): ByteArray {
     return "hh01/del/var?name=$encodedName&type=${entry.type}".encodeToByteArray()
 }
 
-private fun encodeTokenName(tokenName: ByteArray): String = buildString {
+internal fun buildVariableResourceName(entry: EvoDirectoryEntry): String {
+    val encodedName = encodeTokenName(entry.tokenName)
+    require(encodedName.isNotEmpty()) { "calculator returned an empty tokenized variable name" }
+    return "var?name=$encodedName&type=${entry.type}"
+}
+
+internal fun encodeTokenName(tokenName: ByteArray): String = buildString {
     var index = 0
     while (index + 1 < tokenName.size) {
         val word = (tokenName[index].toInt() and 0xFF) or

@@ -2,6 +2,7 @@ package com.inspyresoftworks.ti84evo.cli
 
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
 import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
+import com.inspyresoftworks.ti84evo.protocol.EvoLink
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
 import com.inspyresoftworks.ti84evo.transport.EvoSerialTransport
 import java.nio.charset.StandardCharsets
@@ -23,6 +24,7 @@ object EvoCli {
         try {
             when (args.firstOrNull()?.lowercase()) {
                 "send" -> send(args.drop(1))
+                "list-files", "list" -> listFiles()
                 "install-context-menu" -> installContextMenu()
                 "uninstall-context-menu" -> uninstallContextMenu()
                 "help", "--help", "-h", null -> usage()
@@ -31,6 +33,29 @@ object EvoCli {
         } catch (error: Throwable) {
             Terminal.error(error.message ?: error.javaClass.simpleName)
             exitProcess(1)
+        }
+    }
+
+    private fun listFiles() {
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        val entries = EvoSerialTransport.auto().use { transport ->
+            transport.open()
+            Terminal.success("Connected to ${transport.description}")
+            EvoLink(transport).getDirectory()
+        }.sortedWith(compareBy({ it.name.lowercase() }, { it.type }, { it.archived }))
+
+        Terminal.header("CALCULATOR FILES", "${entries.size} variable(s)")
+        if (entries.isEmpty()) {
+            Terminal.muted("  No calculator variables were returned.")
+            return
+        }
+
+        println("  ${"NAME".padEnd(12)} ${"TYPE".padEnd(22)} ${"SIZE".padStart(10)}  MEMORY")
+        entries.forEach { entry ->
+            val type = "${entry.typeName} (${entry.type})"
+            println(
+                "  ${entry.name.padEnd(12)} ${type.padEnd(22)} ${formatBytes(entry.size).padStart(10)}  ${entry.location}",
+            )
         }
     }
 
@@ -209,6 +234,7 @@ object EvoCli {
             TI-84 Evo sender
 
               ti84-evo send [--project DIR] [--all|--always-rebuild] [--archive|--ram] [FILE|DIR ...]
+              ti84-evo list-files
               ti84-evo install-context-menu
               ti84-evo uninstall-context-menu
 
@@ -220,6 +246,8 @@ object EvoCli {
     private val IGNORED_DIRECTORIES = setOf(
         ".git", ".idea", ".venv", "venv", "__pycache__", "build", "dist", "node_modules",
     )
+
+    private fun formatBytes(bytes: Long): String = "$bytes B"
 
     private object Terminal {
         private val color = System.getenv("NO_COLOR") == null &&
