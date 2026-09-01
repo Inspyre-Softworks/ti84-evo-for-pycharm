@@ -2,6 +2,7 @@ import org.jetbrains.intellij.platform.gradle.tasks.BuildPluginTask
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.bundling.Zip
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
 
 plugins {
     kotlin("jvm") version "2.4.10"
@@ -169,6 +170,12 @@ intellijPlatform {
 
         description = "Native TI-84 Evo integration for PyCharm."
         changeNotes = marketplaceChangeNotes
+    }
+
+    pluginVerification {
+        ides {
+            recommended()
+        }
     }
 
     signing {
