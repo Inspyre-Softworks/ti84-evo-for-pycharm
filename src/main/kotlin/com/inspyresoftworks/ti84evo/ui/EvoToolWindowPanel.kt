@@ -1151,25 +1151,29 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         return@onSuccess
                     }
 
-                    runCatching {
-                        FileDocumentManager.getInstance().saveAllDocuments()
-                        ApplicationManager.getApplication().runWriteAction {
+                    FileDocumentManager.getInstance().saveAllDocuments()
+                    ApplicationManager.getApplication().executeOnPooledThread {
+                        runCatching {
                             EvoProjectPull.write(plan, overwrite = plan.conflicts.isNotEmpty())
-                        }
-                        val refreshed = plan.targets.map { it.path } + root.resolve(EvoProjectManifest.FILE_NAME)
-                        refreshed.forEach(LocalFileSystem.getInstance()::refreshAndFindFileByNioFile)
-                    }.onSuccess {
-                        showStatus("Pulled ${plan.targets.size} Python project files", StatusKind.CONNECTED)
-                        output.text = buildString {
-                            appendLine("Project pull successful")
-                            plan.targets.forEach { target ->
-                                appendLine("• ${target.entry.programName} → ${target.entry.sourcePath}")
+                            val refreshed = plan.targets.map { it.path } + root.resolve(EvoProjectManifest.FILE_NAME)
+                            refreshed.forEach(LocalFileSystem.getInstance()::refreshAndFindFileByNioFile)
+                        }.onSuccess {
+                            onEdt {
+                                showStatus("Pulled ${plan.targets.size} Python project files", StatusKind.CONNECTED)
+                                output.text = buildString {
+                                    appendLine("Project pull successful")
+                                    plan.targets.forEach { target ->
+                                        appendLine("• ${target.entry.programName} → ${target.entry.sourcePath}")
+                                    }
+                                    appendLine("Total source: ${pulled.sourceBytes} bytes")
+                                    appendLine("Total transfer payload: ${pulled.payloadBytes} bytes")
+                                    append("Saved ${EvoProjectManifest.FILE_NAME}; the next normal push will treat these files as synchronized.")
+                                }
                             }
-                            appendLine("Total source: ${pulled.sourceBytes} bytes")
-                            appendLine("Total transfer payload: ${pulled.payloadBytes} bytes")
-                            append("Saved ${EvoProjectManifest.FILE_NAME}; the next normal push will treat these files as synchronized.")
+                        }.onFailure { error ->
+                            onEdt { showFailure(error) }
                         }
-                    }.onFailure(::showFailure)
+                    }
                 }.onFailure(::showFailure)
             }
         }
