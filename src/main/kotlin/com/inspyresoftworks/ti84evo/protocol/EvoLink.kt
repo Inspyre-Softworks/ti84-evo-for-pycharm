@@ -131,7 +131,6 @@ class EvoLink(private val transport: EvoTransport) {
         val clearedFile = EvoVariableFile.addChecksum(
             EvoVariableFile.retargetName(EvoVariableFile.clearList(raw), builtInTokenName),
         )
-        deleteVariable(entry)
         var lastFailure: RuntimeException? = null
 
         repeat(DELETE_ATTEMPTS) { attempt ->

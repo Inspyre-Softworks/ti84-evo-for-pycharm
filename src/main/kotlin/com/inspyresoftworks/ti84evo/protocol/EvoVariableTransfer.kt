@@ -135,7 +135,15 @@ class EvoVariableTransfer(transport: EvoTransport) {
                 val raw = link.getVariable(entry)
                 val file = EvoVariableFile.addChecksum(raw)
                 reconnect()
-                val packets = sender.uploadPayload(archiveTransferUrl(), file)
+                var packets = 0
+                var uploadFailure: RuntimeException? = null
+                try {
+                    packets = sender.uploadPayload(archiveTransferUrl(), file)
+                } catch (error: RuntimeException) {
+                    // The calculator can commit the archive transfer even when the final ACK is lost.
+                    // Verify the resulting directory state before reporting this entry as failed.
+                    uploadFailure = error
+                }
                 reconnect()
                 val archivedEntry = link.getDirectory().singleOrNull {
                     it.type == entry.type &&
@@ -143,6 +151,7 @@ class EvoVariableTransfer(transport: EvoTransport) {
                         it.tokenName.contentEquals(entry.tokenName)
                 } ?: throw EvoProtocolException(
                     "calculator did not report ${entry.name} in Archive after the transfer",
+                    uploadFailure,
                 )
                 ArchiveResult(archivedEntry, file.size, packets)
             } catch (error: Throwable) {

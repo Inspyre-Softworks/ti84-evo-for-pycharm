@@ -191,7 +191,6 @@ class EvoLinkTest {
         val empty = nativeList(entry.tokenName, length = 0, data = byteArrayOf())
         val responses = ArrayDeque<ByteArray>().apply {
             addAll(variableRead(entry, populated))
-            addAll(sendAcks(buildDeleteRequest(entry).decodeToString()))
             addAll(directoryRead())
             addAll(sendAcks(EvoVariablePayload.transferUrl(archived = false)))
             addAll(directoryRead(directoryEntry(entry.tokenName, archived = false, type = 1, size = 4)))
@@ -217,7 +216,7 @@ class EvoLinkTest {
         assertEquals(listOf("L1"), completed.map { it.name })
         assertEquals(4L, completed.single().size)
         assertTrue(isPersistentBuiltInList(completed.single()))
-        assertEquals(1, writes.count { it.type == 'F' && it.data.decodeToString().startsWith("hh01/del/") })
+        assertEquals(0, writes.count { it.type == 'F' && it.data.decodeToString().startsWith("hh01/del/") })
         val uploadStart = writes.indexOfFirst {
             it.type == 'F' && it.data.decodeToString() == EvoVariablePayload.transferUrl(false)
         }
