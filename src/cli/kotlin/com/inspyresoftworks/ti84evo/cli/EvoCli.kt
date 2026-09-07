@@ -1,9 +1,15 @@
 package com.inspyresoftworks.ti84evo.cli
 
+import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
+import com.inspyresoftworks.ti84evo.project.EvoProjectPull
 import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
 import com.inspyresoftworks.ti84evo.protocol.EvoLink
+import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectPuller
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
+import com.inspyresoftworks.ti84evo.protocol.EvoVariableDeleteException
+import com.inspyresoftworks.ti84evo.protocol.EvoVariableTransfer
+import com.inspyresoftworks.ti84evo.protocol.isPersistentBuiltInList
 import com.inspyresoftworks.ti84evo.transport.EvoSerialTransport
 import java.nio.charset.StandardCharsets
 import java.io.PrintStream
@@ -24,6 +30,9 @@ object EvoCli {
         try {
             when (args.firstOrNull()?.lowercase()) {
                 "send" -> send(args.drop(1))
+                "pull" -> pull(args.drop(1))
+                "archive" -> archiveFiles(args.drop(1))
+                "delete", "rm" -> deleteFiles(args.drop(1))
                 "list-files", "list" -> listFiles()
                 "install-context-menu" -> installContextMenu()
                 "uninstall-context-menu" -> uninstallContextMenu()
@@ -111,33 +120,36 @@ object EvoCli {
             require(path.isRegularFile()) { "Declared source file does not exist: ${entry.sourcePath}" }
             entry.copy(archived = targetOverride ?: entry.archived) to Files.readString(path, StandardCharsets.UTF_8)
         }
-        val pending = if (force || configuration.alwaysPushAll) {
-            sources
-        } else {
-            EvoProjectUploadState.pending(projectRoot, sources)
-        }
-        if (pending.isEmpty()) {
-            Terminal.header("PROJECT IS CURRENT", projectRoot.toString())
-            Terminal.success("All applicable files are up to date — nothing to send.")
-            return
-        }
-
-        Terminal.header("UPLOAD PLAN", projectRoot.toString())
-        pending.forEachIndexed { planIndex, (entry, _) ->
-            Terminal.plan(
-                planIndex + 1,
-                pending.size,
-                entry.sourcePath,
-                entry.programName,
-                if (entry.archived) "ARCHIVE" else "RAM",
-            )
-        }
-        val skipped = sources.size - pending.size
-        if (skipped > 0) Terminal.muted("  ↳ $skipped unchanged file(s) skipped")
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
         EvoSerialTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
+            val calculatorDirectory = EvoLink(transport).getDirectory()
+            val pending = if (force || configuration.alwaysPushAll) {
+                sources
+            } else {
+                EvoProjectUploadState.pending(projectRoot, sources, calculatorDirectory)
+            }
+            if (pending.isEmpty()) {
+                Terminal.header("PROJECT IS CURRENT", projectRoot.toString())
+                Terminal.success("Local sources and calculator programs are up to date — nothing to send.")
+                return
+            }
+
+            Terminal.header("UPLOAD PLAN", projectRoot.toString())
+            pending.forEachIndexed { planIndex, (entry, _) ->
+                Terminal.plan(
+                    planIndex + 1,
+                    pending.size,
+                    entry.sourcePath,
+                    entry.programName,
+                    if (entry.archived) "ARCHIVE" else "RAM",
+                )
+            }
+            val skipped = sources.size - pending.size
+            if (skipped > 0) Terminal.muted("  ↳ $skipped synchronized file(s) skipped")
+            transport.close()
+            transport.open()
             EvoPythonTransfer(transport).uploadProject(
                 pending.map { (entry, source) ->
                     EvoPythonTransfer.Program(entry.programName, source, entry.archived)
@@ -154,9 +166,166 @@ object EvoCli {
                     )
                 },
             )
+            Terminal.success("Upload complete — ${pending.size} file(s) synchronized.")
         }
-        Terminal.success("Upload complete — ${pending.size} file(s) synchronized.")
     }
+
+    private fun pull(arguments: List<String>) {
+        var overwrite = false
+        var projectRoot = Paths.get("").toAbsolutePath().normalize()
+        var index = 0
+        while (index < arguments.size) {
+            when (val argument = arguments[index]) {
+                "--force", "--overwrite" -> overwrite = true
+                "--project" -> {
+                    index++
+                    require(index < arguments.size) { "--project requires a directory" }
+                    projectRoot = Paths.get(arguments[index]).toAbsolutePath().normalize()
+                }
+                else -> error("Unknown pull option: $argument")
+            }
+            index++
+        }
+        Files.createDirectories(projectRoot)
+        val manifestPath = projectRoot.resolve(EvoProjectManifest.FILE_NAME)
+        val existing = if (manifestPath.isRegularFile()) {
+            EvoProjectManifest.parseConfiguration(Files.readString(manifestPath, StandardCharsets.UTF_8))
+        } else {
+            null
+        }
+
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        val pulled = EvoSerialTransport.auto().use { transport ->
+            transport.open()
+            Terminal.success("Connected to ${transport.description}")
+            EvoPythonProjectPuller(transport).pull { program, completed, total ->
+                Terminal.progress(completed, total, program.programName, program.location, program.sourceBytes)
+            }
+        }
+        val plan = EvoProjectPull.plan(projectRoot, pulled.programs, existing)
+        Terminal.header("PULL PLAN", projectRoot.toString())
+        plan.targets.forEachIndexed { planIndex, target ->
+            Terminal.plan(
+                planIndex + 1,
+                plan.targets.size,
+                target.entry.programName,
+                target.entry.sourcePath,
+                if (target.entry.archived) "ARCHIVE" else "RAM",
+            )
+        }
+        if (plan.conflicts.isNotEmpty() && !overwrite) {
+            error(
+                "Pull would overwrite ${plan.conflicts.joinToString { it.entry.sourcePath }}; " +
+                    "rerun with --force to replace local files",
+            )
+        }
+        EvoProjectPull.write(plan, overwrite)
+        Terminal.success(
+            "Pulled ${plan.targets.size} Python file(s), wrote ${EvoProjectManifest.FILE_NAME}, " +
+                "and synchronized local state.",
+        )
+    }
+
+    private fun archiveFiles(arguments: List<String>) {
+        require(arguments.isNotEmpty()) { "archive requires one or more NAME or NAME:TYPE selectors" }
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        EvoSerialTransport.auto().use { transport ->
+            transport.open()
+            Terminal.success("Connected to ${transport.description}")
+            val directory = EvoLink(transport).getDirectory()
+            val selected = selectVariables(directory, arguments, "Archive")
+            val alreadyArchived = selected.filter { it.archived }
+            alreadyArchived.forEach { Terminal.muted("  ${it.name}:${it.type} is already in Archive") }
+            val pending = selected.filterNot { it.archived }
+            if (pending.isEmpty()) {
+                Terminal.success("Every selected variable is already in Archive.")
+                return
+            }
+            Terminal.header("ARCHIVE PLAN", "${pending.size} calculator variable(s)")
+            pending.forEachIndexed { planIndex, entry ->
+                Terminal.plan(planIndex + 1, pending.size, entry.name, entry.typeName, "ARCHIVE")
+            }
+            EvoVariableTransfer(transport).archiveVariables(pending) { result, completed, total ->
+                Terminal.progress(
+                    completed,
+                    total,
+                    result.entry.name,
+                    "ARCHIVE",
+                    result.payloadBytes,
+                )
+            }
+            Terminal.success("Archived ${pending.size} calculator variable(s).")
+        }
+    }
+
+    private fun deleteFiles(arguments: List<String>) {
+        val assumeYes = arguments.any { it == "--yes" || it == "-y" }
+        val selectors = arguments.filterNot { it == "--yes" || it == "-y" }
+        require(selectors.isNotEmpty()) { "delete requires one or more NAME or NAME:TYPE selectors" }
+        require(selectors.none { it.startsWith("-") }) { "Unknown delete option: ${selectors.first { it.startsWith("-") }}" }
+
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        EvoSerialTransport.auto().use { transport ->
+            transport.open()
+            Terminal.success("Connected to ${transport.description}")
+            val link = EvoLink(transport)
+            val selected = selectVariables(link.getDirectory(), selectors, "Delete")
+
+            Terminal.header("DELETE PLAN", "${selected.size} calculator variable(s)")
+            selected.forEachIndexed { planIndex, entry ->
+                val action = if (isPersistentBuiltInList(entry)) "CLEAR" else "DELETE"
+                Terminal.plan(
+                    planIndex + 1,
+                    selected.size,
+                    entry.name,
+                    entry.typeName,
+                    "$action ${entry.location.uppercase()}",
+                )
+            }
+            if (!assumeYes && !Terminal.confirm("Apply this calculator file plan? L1–L6 values are cleared, not deleted.")) {
+                Terminal.muted("  Operation cancelled; no calculator variables were changed.")
+                return
+            }
+
+            val completed = try {
+                link.deleteVariables(selected) { entry, completed, total ->
+                    val action = if (isPersistentBuiltInList(entry)) "CLEARED" else "DELETED"
+                    Terminal.progress(completed, total, entry.name, action, entry.size.toInt())
+                }
+            } catch (error: EvoVariableDeleteException) {
+                if (error.deletedEntries.isNotEmpty()) {
+                    Terminal.muted("  Already deleted: ${error.deletedEntries.joinToString { "${it.name}:${it.type}" }}")
+                }
+                if (error.clearedEntries.isNotEmpty()) {
+                    Terminal.muted("  Already cleared: ${error.clearedEntries.joinToString { "${it.name}:${it.type}" }}")
+                }
+                throw error
+            }
+            val deleted = completed.count { !isPersistentBuiltInList(it) }
+            val cleared = completed.size - deleted
+            Terminal.success("Completed ${completed.size} operation(s): deleted $deleted, cleared $cleared.")
+        }
+    }
+
+    private fun selectVariables(
+        directory: List<EvoDirectoryEntry>,
+        selectors: List<String>,
+        action: String,
+    ): List<EvoDirectoryEntry> = selectors.map { selector ->
+        val separator = selector.lastIndexOf(':')
+        val name = if (separator < 0) selector else selector.substring(0, separator)
+        require(name.isNotBlank()) { "$action selector name cannot be empty: $selector" }
+        val type = if (separator < 0) null else selector.substring(separator + 1).toIntOrNull()
+            ?: error("$action selector type must be numeric: $selector")
+        val matches = directory.filter {
+            it.name.equals(name, ignoreCase = true) && (type == null || it.type == type)
+        }
+        require(matches.isNotEmpty()) { "No calculator variable matches $selector" }
+        require(matches.size == 1) {
+            "$selector is ambiguous; use NAME:TYPE (matching types: ${matches.joinToString { it.type.toString() }})"
+        }
+        matches.single()
+    }.distinctBy { "${it.type}:${it.name.uppercase()}" }
 
     private fun collectPythonFiles(paths: List<Path>): List<Path> = paths.flatMap { path ->
         when {
@@ -234,6 +403,9 @@ object EvoCli {
             TI-84 Evo sender
 
               ti84-evo send [--project DIR] [--all|--always-rebuild] [--archive|--ram] [FILE|DIR ...]
+              ti84-evo pull [--project DIR] [--force]
+              ti84-evo archive NAME[:TYPE] [NAME[:TYPE] ...]
+              ti84-evo delete [--yes] NAME[:TYPE] [NAME[:TYPE] ...]
               ti84-evo list-files
               ti84-evo install-context-menu
               ti84-evo uninstall-context-menu
@@ -299,6 +471,16 @@ object EvoCli {
 
         fun info(label: String, message: String) =
             println("\n  " + paint("◆ $label", BOLD, YELLOW) + "  $message")
+
+        fun confirm(message: String): Boolean {
+            checkNotNull(System.console()) {
+                "Deletion requires an interactive console; rerun with --yes to confirm"
+            }
+            print("  " + paint("◆ CONFIRM", BOLD, RED) + "  $message [y/N] ")
+            System.out.flush()
+            val answer = readlnOrNull()?.trim().orEmpty()
+            return answer.equals("y", ignoreCase = true) || answer.equals("yes", ignoreCase = true)
+        }
 
         fun success(message: String) = println("\n  " + paint("✓", BOLD, GREEN) + "  " + paint(message, BOLD))
 

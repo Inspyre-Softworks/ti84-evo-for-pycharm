@@ -3,6 +3,7 @@ package com.inspyresoftworks.ti84evo.protocol
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 class EvoVariableFileTest {
     @Test
@@ -43,5 +44,59 @@ class EvoVariableFileTest {
         assertEquals(original.metadata["type"], renamed.metadata["type"])
         assertEquals(original.fields - "data", renamed.fields - "data")
         assertContentEquals(original.data, renamed.data)
+    }
+
+    @Test
+    fun `clearing a native list preserves metadata and removes its element fields`() {
+        val tokenName = byteArrayOf(0x30, 0xE8.toByte())
+        val raw = cborMap(
+            "metaData" to cborMap(
+                "type" to cborUnsigned(1),
+                "version" to cborUnsigned(1),
+                "name" to cborBytes(tokenName),
+            ),
+            "version" to cborUnsigned(1),
+            "type" to cborUnsigned(0),
+            "len" to cborUnsigned(2),
+            "arraylen" to cborUnsigned(8),
+            "size" to cborUnsigned(19),
+            "data" to cborBytes(byteArrayOf(1, 2, 3)),
+        )
+
+        val cleared = EvoVariableFile.inspect(EvoVariableFile.clearList(raw))
+
+        assertContentEquals(tokenName, cleared.metadata["name"] as ByteArray)
+        assertEquals(0L, cleared.fields["len"])
+        assertFalse("arraylen" in cleared.fields)
+        assertFalse("size" in cleared.fields)
+        assertFalse("data" in cleared.fields)
+        assertContentEquals(byteArrayOf(), cleared.data)
+    }
+
+    private fun cborMap(vararg entries: Pair<String, ByteArray>): ByteArray = concat(
+        cborLength(5, entries.size),
+        *entries.flatMap { (key, value) -> listOf(cborText(key), value) }.toTypedArray(),
+    )
+
+    private fun cborText(value: String): ByteArray {
+        val bytes = value.encodeToByteArray()
+        return concat(cborLength(3, bytes.size), bytes)
+    }
+
+    private fun cborBytes(value: ByteArray): ByteArray = concat(cborLength(2, value.size), value)
+
+    private fun cborUnsigned(value: Int): ByteArray = cborLength(0, value)
+
+    private fun cborLength(major: Int, value: Int): ByteArray =
+        byteArrayOf(((major shl 5) or value).toByte())
+
+    private fun concat(vararg values: ByteArray): ByteArray {
+        val result = ByteArray(values.sumOf { it.size })
+        var offset = 0
+        values.forEach { value ->
+            value.copyInto(result, offset)
+            offset += value.size
+        }
+        return result
     }
 }

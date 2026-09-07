@@ -14,26 +14,24 @@ import javax.swing.JPanel
 
 internal class EvoAboutDialog(
     project: Project,
-    private val version: String,
+    versionStatus: EvoVersionStatus,
     private val pluginId: String,
 ) : DialogWrapper(project) {
     private val project = project
+    private var versionStatus = versionStatus
+    private val versionDetails = JBLabel()
 
     init {
         title = "About TI-84 Evo"
         setOKButtonText("Close")
         init()
+        updateVersionStatus(versionStatus)
     }
 
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout(0, 12)).apply {
         border = JBUI.Borders.empty(12)
         add(
-            JBLabel(
-                "<html><h2>TI-84 Evo for PyCharm</h2>" +
-                    "Version: $version<br>" +
-                    "Build: ${if (version.endsWith("-SNAPSHOT")) "Development snapshot" else "Release"}<br>" +
-                    "Plugin ID: $pluginId</html>",
-            ),
+            versionDetails,
             BorderLayout.CENTER,
         )
         add(
@@ -44,6 +42,16 @@ internal class EvoAboutDialog(
             },
             BorderLayout.SOUTH,
         )
+    }
+
+    internal fun updateVersionStatus(status: EvoVersionStatus) {
+        versionStatus = status
+        versionDetails.text = "<html><h2>TI-84 Evo for PyCharm</h2>" +
+            "Version: ${status.displayVersion}<br>" +
+            "Build: ${status.buildDescription}<br>" +
+            "Marketplace: ${status.marketplaceDescription}<br>" +
+            "Verification: ${status.detail}<br>" +
+            "Plugin ID: $pluginId</html>"
     }
 
     private fun showLicense() {

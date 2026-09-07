@@ -9,8 +9,9 @@ import com.inspyresoftworks.ti84evo.transport.EvoTransport
  *
  * Author: Taylor B. | Inspyre-Softworks.
  */
-class EvoLink(transport: EvoTransport) {
+class EvoLink(private val transport: EvoTransport) {
     private val transactions = EvoTransactionEngine(transport)
+    private val sender = EvoPythonTransfer(transport)
 
     fun getResource(uri: String): ByteArray {
         val request = buildGetRequest(uri)
@@ -34,19 +35,28 @@ class EvoLink(transport: EvoTransport) {
     fun getVariable(entry: EvoDirectoryEntry): ByteArray =
         getResource("hh01/xfr/${buildVariableResourceName(entry)}")
 
-    fun deleteVariables(entries: List<EvoDirectoryEntry>): List<EvoDirectoryEntry> {
-        val deletedEntries = mutableListOf<EvoDirectoryEntry>()
+    fun deleteVariables(
+        entries: List<EvoDirectoryEntry>,
+        onProgress: (EvoDirectoryEntry, Int, Int) -> Unit = { _, _, _ -> },
+    ): List<EvoDirectoryEntry> {
+        val completedEntries = mutableListOf<EvoDirectoryEntry>()
 
         for (entry in entries) {
             try {
-                deleteVariable(entry)
-                deletedEntries += entry
+                val completedEntry = if (isPersistentBuiltInList(entry)) {
+                    clearBuiltInList(entry)
+                } else {
+                    deleteVariable(entry)
+                    entry
+                }
+                completedEntries += completedEntry
+                runCatching { onProgress(completedEntry, completedEntries.size, entries.size) }
             } catch (error: RuntimeException) {
-                throw EvoVariableDeleteException(entry, deletedEntries.toList(), error)
+                throw EvoVariableDeleteException(entry, completedEntries.toList(), error)
             }
         }
 
-        return deletedEntries
+        return completedEntries
     }
 
     fun getScreenCapture(): EvoScreenCapture {
@@ -69,14 +79,119 @@ class EvoLink(transport: EvoTransport) {
 
     private fun deleteVariable(entry: EvoDirectoryEntry) {
         val request = buildDeleteRequest(entry)
-        try {
-            transactions.sendSmallTransaction(request, byteArrayOf(0))
-        } catch (error: EvoProtocolException) {
-            throw EvoProtocolException(
-                "variable delete request ${request.decodeToString()} failed: ${error.message}",
-                error,
-            )
+        var lastFailure: RuntimeException? = null
+
+        repeat(DELETE_ATTEMPTS) { attempt ->
+            reconnect()
+            try {
+                // Delete uses the same negotiated Kermit data encoding as the
+                // calculator-tested variable upload path. A raw NUL payload can be
+                // acknowledged without the firmware actually applying the request.
+                sender.uploadPayload(request.decodeToString(), byteArrayOf(0))
+            } catch (error: RuntimeException) {
+                // The calculator can apply a delete without returning the final ACK.
+                // Verify the directory before deciding whether this attempt failed.
+                lastFailure = error
+            }
+
+            val remains = try {
+                reconnect()
+                getDirectory().any { candidate -> candidate.sameVariableAs(entry) }
+            } catch (error: RuntimeException) {
+                lastFailure = error
+                if (attempt == DELETE_ATTEMPTS - 1) {
+                    throw EvoProtocolException(
+                        "could not verify deletion of ${entry.name}: ${error.message}",
+                        error,
+                    )
+                }
+                return@repeat
+            }
+
+            if (!remains) return
+            lastFailure = EvoProtocolException("calculator still reports ${entry.name} after the delete request")
         }
+
+        throw EvoProtocolException(
+            "calculator still reports ${entry.name} after $DELETE_ATTEMPTS delete attempts",
+            lastFailure,
+        )
+    }
+
+    private fun clearBuiltInList(entry: EvoDirectoryEntry): EvoDirectoryEntry {
+        reconnect()
+        val raw = getVariable(entry)
+        val currentValue = EvoVariableDecoder.decode(raw, entry.type, entry.name, entry.archived)
+        if (currentValue.value.isBlank()) {
+            restoreDefaultListEditor()
+            return entry
+        }
+
+        val builtInTokenName = entry.tokenName.dropLastWhile { it == 0.toByte() }.toByteArray()
+        val clearedFile = EvoVariableFile.addChecksum(
+            EvoVariableFile.retargetName(EvoVariableFile.clearList(raw), builtInTokenName),
+        )
+        deleteVariable(entry)
+        var lastFailure: RuntimeException? = null
+
+        repeat(DELETE_ATTEMPTS) { attempt ->
+            reconnect()
+            try {
+                sender.uploadPayload(EvoVariablePayload.transferUrl(entry.archived), clearedFile)
+            } catch (error: RuntimeException) {
+                lastFailure = error
+            }
+
+            try {
+                reconnect()
+                val current = getDirectory().singleOrNull { candidate -> candidate.sameVariableAs(entry) }
+                if (current != null) {
+                    reconnect()
+                    val decoded = EvoVariableDecoder.decode(
+                        getVariable(current),
+                        current.type,
+                        current.name,
+                        current.archived,
+                    )
+                    if (decoded.value.isBlank()) {
+                        restoreDefaultListEditor()
+                        return current
+                    }
+                    lastFailure = EvoProtocolException("calculator still reports values in ${entry.name}")
+                } else {
+                    lastFailure = EvoProtocolException("calculator no longer reports built-in list ${entry.name}")
+                }
+            } catch (error: RuntimeException) {
+                lastFailure = error
+                if (attempt == DELETE_ATTEMPTS - 1) {
+                    throw EvoProtocolException(
+                        "could not verify that ${entry.name} was cleared: ${error.message}",
+                        error,
+                    )
+                }
+            }
+        }
+
+        throw EvoProtocolException("calculator did not retain ${entry.name} as an empty list", lastFailure)
+    }
+
+    private fun restoreDefaultListEditor() {
+        reconnect()
+        EvoListEditor(transport).restoreDefaultColumns()
+    }
+
+    private fun EvoDirectoryEntry.sameVariableAs(other: EvoDirectoryEntry): Boolean {
+        if (type != other.type) return false
+        return if (tokenName.isNotEmpty() && other.tokenName.isNotEmpty()) {
+            tokenName.contentEquals(other.tokenName)
+        } else {
+            name.equals(other.name, ignoreCase = true)
+        }
+    }
+
+    private fun reconnect() {
+        transport.close()
+        transport.open()
     }
 
     private fun decodeStringMap(raw: ByteArray): Map<String, Any?> {
@@ -91,6 +206,10 @@ class EvoLink(transport: EvoTransport) {
         val number = this[key] as? Number ?: throw EvoProtocolException("missing or non-numeric $key")
         return number.toInt()
     }
+
+    private companion object {
+        const val DELETE_ATTEMPTS = 2
+    }
 }
 
 internal fun buildGetRequest(uri: String): ByteArray {
@@ -100,18 +219,22 @@ internal fun buildGetRequest(uri: String): ByteArray {
 }
 
 internal fun buildDeleteRequest(entry: EvoDirectoryEntry): ByteArray {
-    val encodedName = encodeTokenName(entry.tokenName)
-    if (encodedName.isEmpty()) {
-        throw EvoProtocolException("cannot delete ${entry.name}: calculator returned an empty tokenized name")
-    }
-    return "hh01/del/var?name=$encodedName&type=${entry.type}".encodeToByteArray()
+    val resource = buildVariableResourceName(entry)
+    return DELETE_ROUTE.format(resource).encodeToByteArray()
 }
 
 internal fun buildVariableResourceName(entry: EvoDirectoryEntry): String {
     val encodedName = encodeTokenName(entry.tokenName)
-    require(encodedName.isNotEmpty()) { "calculator returned an empty tokenized variable name" }
+    if (encodedName.isEmpty()) {
+        throw EvoProtocolException("calculator returned an empty tokenized variable name for ${entry.name}")
+    }
     return "var?name=$encodedName&type=${entry.type}"
 }
+
+private const val DELETE_ROUTE = "hh01/del/%s"
+
+fun isPersistentBuiltInList(entry: EvoDirectoryEntry): Boolean =
+    entry.type == 1 && isPersistentBuiltInListName(entry.name)
 
 internal fun encodeTokenName(tokenName: ByteArray): String = buildString {
     var index = 0

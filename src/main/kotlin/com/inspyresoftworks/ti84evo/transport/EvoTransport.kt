@@ -9,6 +9,5 @@ interface EvoTransport : AutoCloseable {
     val description: String
     fun open()
     fun write(data: ByteArray)
-    fun readFrameBytes(): ByteArray
     fun readPacketBytes(): ByteArray
 }

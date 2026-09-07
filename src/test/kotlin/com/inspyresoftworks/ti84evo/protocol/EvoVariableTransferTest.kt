@@ -12,10 +12,22 @@ class EvoVariableTransferTest {
             override fun open() = Unit
             override fun close() = Unit
             override fun write(data: ByteArray) = Unit
-            override fun readFrameBytes(): ByteArray = error("not used")
             override fun readPacketBytes(): ByteArray = error("not used")
         })
 
         assertEquals("Z0002", transfer.temporaryListName(listOf("z0000", "Z0001", "L1")))
+    }
+
+    @Test
+    fun `archive transfer targets calculator Archive with overwrite policy`() {
+        val transfer = EvoVariableTransfer(object : EvoTransport {
+            override val description = "test"
+            override fun open() = Unit
+            override fun close() = Unit
+            override fun write(data: ByteArray) = Unit
+            override fun readPacketBytes(): ByteArray = error("not used")
+        })
+
+        assertEquals("hh01/xfr/var?memtarget=1&policy=1", transfer.archiveTransferUrl())
     }
 }

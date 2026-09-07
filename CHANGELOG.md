@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.1
+
+- Compare the installed plugin with the latest JetBrains Marketplace release, label newer builds as developmental, and flag version or SHA-256 mismatches in the footer and About window.
+- Download every type-15 Python program from the calculator, reconstruct local `.py` files and the project manifest, preserve RAM/Archive targets, and protect conflicting local files from silent overwrites.
+- Save selected RAM variables to calculator Archive from the PyCharm file browser and the new CLI `archive` command.
+- Delete named RAM or Archive variables from the CLI with type disambiguation, an explicit deletion plan, confirmation, progress, and directory-verified partial-failure reporting; adding or clearing built-in lists restores the default L1–L6 List Editor columns through the calculator's scancode endpoint.
+- Save full-resolution calculator screenshots as PNG through two Screen-pane buttons or matching right-click actions, including collision-safe one-click saves to the project directory.
+- Refresh the Calculator Files directory whenever its tab is opened or clicked and after successful variable, image, Python, project, or Archive uploads.
+- Check configured Python names and RAM/Archive targets against the live calculator directory before declaring a project current, restoring unchanged files that were deleted or moved on the calculator.
+- Decode native Python AppVars whose declared meaningful length excludes up to three trailing alignment bytes, fixing project pulls for calculator-padded programs.
+- Add matching CLI `pull` support with manifest-path reuse, explicit overwrite protection, and synchronized incremental-upload state.
+- Unify resource reads and uploads on the Kermit packet codec while preserving the calculator-tested resource framing and extended AUX-byte behavior; add modulo-64 receive sequences, upload ACK validation, and corrected NV/VE transfer errors.
+- Add Read the Docs, GitHub Actions, Sourcery, and JetBrains Marketplace badges to the README.
+
 ## 0.3.0
 
 - Add a read-only CLI calculator directory command showing native type IDs,

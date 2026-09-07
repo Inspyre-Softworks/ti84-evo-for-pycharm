@@ -1,6 +1,8 @@
 package com.inspyresoftworks.ti84evo.protocol
 
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 
 /**
@@ -16,6 +18,13 @@ object EvoPythonPayload {
         val programName: String,
         val sourceBytes: Int,
         val bytes: ByteArray,
+    )
+
+    data class Decoded(
+        val programName: String,
+        val source: String,
+        val sourceBytes: Int,
+        val payloadBytes: Int,
     )
 
     fun isValidProgramName(name: String): Boolean =
@@ -57,6 +66,66 @@ object EvoPythonPayload {
         }.toByteArray()
 
         return Built(normalizedName, sourceBytes.size, payload)
+    }
+
+    /** Decode a downloaded type-15 Evo variable envelope back into Python source. */
+    fun decode(raw: ByteArray): Decoded {
+        val inspection = EvoVariableFile.inspect(raw)
+        val type = (inspection.metadata["type"] as? Number)?.toInt()
+            ?: throw EvoProtocolException("Python variable metadata is missing its type")
+        if (type != PYTHON_TYPE) {
+            throw EvoProtocolException("expected Python variable type $PYTHON_TYPE, got $type")
+        }
+
+        val appVar = inspection.data
+        if (appVar.size < 18 || u(appVar[0]) != 0x13 || u(appVar[1]) != 0x01) {
+            throw EvoProtocolException("unrecognized Evo Python AppVar header")
+        }
+        val declaredTotal = readUInt32Le(appVar, 4)
+        val alignmentPadding = appVar.size.toLong() - declaredTotal
+        if (alignmentPadding !in 0..MAX_NATIVE_ALIGNMENT_BYTES.toLong()) {
+            throw EvoProtocolException(
+                "Python AppVar length mismatch: declared $declaredTotal, got ${appVar.size}",
+            )
+        }
+
+        val nameLength = u(appVar[8])
+        val nameStart = 12
+        val nameEnd = nameStart + nameLength
+        if (nameEnd + 6 > appVar.size || u(appVar[nameEnd]) != 0) {
+            throw EvoProtocolException("truncated Evo Python program name")
+        }
+        val programName = String(appVar, nameStart, nameLength, StandardCharsets.US_ASCII)
+        if (!isValidProgramName(programName)) {
+            throw EvoProtocolException("invalid Evo Python program name in downloaded payload")
+        }
+
+        val sourceLength = readUInt16Le(appVar, nameEnd + 1)
+        if (u(appVar[nameEnd + 3]) != 0 || u(appVar[nameEnd + 4]) != 2) {
+            throw EvoProtocolException("unrecognized Evo Python source marker")
+        }
+        val sourceStart = nameEnd + 5
+        val sourceEnd = sourceStart + sourceLength
+        val trailerLength = appVar.size - sourceEnd
+        val declaredSourceEnd = sourceEnd.toLong() + 1
+        if (
+            declaredTotal != declaredSourceEnd ||
+            trailerLength !in 1..MAX_NATIVE_TRAILER_BYTES ||
+            appVar.copyOfRange(sourceEnd, appVar.size).any { it != 0.toByte() }
+        ) {
+            throw EvoProtocolException("Python source length does not match downloaded payload")
+        }
+        val sourceBytes = appVar.copyOfRange(sourceStart, sourceEnd)
+        val source = try {
+            StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(sourceBytes))
+                .toString()
+        } catch (error: java.nio.charset.CharacterCodingException) {
+            throw EvoProtocolException("downloaded Python source is not valid UTF-8", error)
+        }
+        return Decoded(programName.uppercase(), source, sourceBytes.size, raw.size)
     }
 
     fun transferUrl(programName: String, archive: Boolean = false, overwrite: Boolean = true): String {
@@ -163,4 +232,22 @@ object EvoPythonPayload {
         write((value shr 16) and 0xFF)
         write((value shr 24) and 0xFF)
     }
+
+    private fun readUInt16Le(data: ByteArray, offset: Int): Int {
+        if (offset < 0 || offset + 2 > data.size) throw EvoProtocolException("truncated 16-bit field")
+        return u(data[offset]) or (u(data[offset + 1]) shl 8)
+    }
+
+    private fun readUInt32Le(data: ByteArray, offset: Int): Long {
+        if (offset < 0 || offset + 4 > data.size) throw EvoProtocolException("truncated 32-bit field")
+        return u(data[offset]).toLong() or
+            (u(data[offset + 1]).toLong() shl 8) or
+            (u(data[offset + 2]).toLong() shl 16) or
+            (u(data[offset + 3]).toLong() shl 24)
+    }
+
+    private fun u(value: Byte): Int = value.toInt() and 0xFF
+
+    private const val MAX_NATIVE_ALIGNMENT_BYTES = 3
+    private const val MAX_NATIVE_TRAILER_BYTES = 4
 }

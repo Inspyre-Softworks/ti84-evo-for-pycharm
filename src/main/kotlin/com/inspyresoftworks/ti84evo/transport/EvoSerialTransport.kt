@@ -1,7 +1,6 @@
 package com.inspyresoftworks.ti84evo.transport
 
 import com.fazecast.jSerialComm.SerialPort
-import com.inspyresoftworks.ti84evo.protocol.EvoFrameCodec
 import com.inspyresoftworks.ti84evo.protocol.EvoFrameException
 import com.inspyresoftworks.ti84evo.protocol.EvoProtocolException
 import com.inspyresoftworks.ti84evo.protocol.EvoTimeoutException
@@ -92,53 +91,33 @@ class EvoSerialTransport(
 
     override fun readPacketBytes(): ByteArray {
         val deadline = System.nanoTime() + timeoutMillis * 1_000_000L
-        val output = mutableListOf<Byte>()
-
-        var value: Int
-        do {
-            value = readExact(1, deadline)[0].toInt() and 0xFF
-        } while (value != EvoFrameCodec.SOH)
-
-        output += value.toByte()
-        while (true) {
-            value = readExact(1, deadline)[0].toInt() and 0xFF
-            output += value.toByte()
-            if (value == KermitPacketCodec.CR) break
-            if (output.size > 16 * 1024) {
-                throw EvoFrameException("Kermit packet exceeded sane maximum size")
-            }
-        }
-
-        return output.toByteArray()
-    }
-
-    override fun readFrameBytes(): ByteArray {
-        val deadline = System.nanoTime() + timeoutMillis * 1_000_000L
         var first: Int
         do {
             first = readExact(1, deadline)[0].toInt() and 0xFF
-        } while (first != EvoFrameCodec.SOH)
+        } while (first != KermitPacketCodec.SOH)
 
         val lengthMarker = readExact(1, deadline)[0].toInt() and 0xFF
-        val prefix = mutableListOf(EvoFrameCodec.SOH.toByte(), lengthMarker.toByte())
-
-        val total = if (lengthMarker != EvoFrameCodec.PRINTABLE_BASE) {
-            if (lengthMarker !in EvoFrameCodec.PRINTABLE_BASE..EvoFrameCodec.PRINTABLE_MAX) {
-                throw EvoFrameException("invalid short length byte: 0x%02X".format(lengthMarker))
+        val prefix = mutableListOf(KermitPacketCodec.SOH.toByte(), lengthMarker.toByte())
+        val total = if (lengthMarker != 0x20) {
+            if (lengthMarker !in 0x20..0x7E) {
+                throw EvoFrameException("invalid short Kermit length byte: 0x%02X".format(lengthMarker))
             }
-            lengthMarker - EvoFrameCodec.PRINTABLE_BASE + 3
+            lengthMarker - 0x20 + 3
         } else {
             val extendedHeader = readExact(4, deadline)
             extendedHeader.forEach(prefix::add)
-            val span = EvoFrameCodec.decodeBase95Pair(
+            val dataAndCheckLength = KermitPacketCodec.decodeLongPacketLength(
                 extendedHeader[2].toInt() and 0xFF,
                 extendedHeader[3].toInt() and 0xFF,
             )
-            span + 8
+            dataAndCheckLength + 8
+        }
+        if (total > 16 * 1024) {
+            throw EvoFrameException("Kermit packet exceeded sane maximum size")
         }
 
         val prefixBytes = prefix.toByteArray()
-        return EvoFrameCodec.concat(prefixBytes, readExact(total - prefixBytes.size, deadline))
+        return prefixBytes + readExact(total - prefixBytes.size, deadline)
     }
 
     companion object {

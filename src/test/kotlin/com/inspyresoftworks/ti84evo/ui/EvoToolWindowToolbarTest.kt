@@ -22,6 +22,7 @@ class EvoToolWindowToolbarTest : BasePlatformTestCase() {
                 configureProject = {},
                 configureTransfers = {},
                 pushProject = {},
+                pullProject = {},
                 showAbout = {},
             ),
         )
@@ -39,6 +40,7 @@ class EvoToolWindowToolbarTest : BasePlatformTestCase() {
                 "Upload current Python file",
                 "Upload picture",
                 "Push project",
+                "Pull project",
                 "Configure project",
                 "Transfer settings",
                 "About TI-84 Evo",

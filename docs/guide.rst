@@ -31,21 +31,55 @@ units, and power and certificate states are explained. Press **Copy
 Attributes** to place a Markdown report on the clipboard; the report includes
 both the formatted details and the original protocol key/value pairs.
 
+Screen capture
+--------------
+
+Press **Capture screen** to display the calculator framebuffer in the **Screen**
+tab. The two buttons beneath the image save the original full-resolution capture
+as a PNG: **Save As…** opens a destination chooser, while **Save to Project Dir**
+uses a timestamped filename in the open project's root directory. Right-click
+the screenshot for the same two actions. Existing files selected through
+**Save As…** require confirmation before replacement; project-directory saves
+choose a numbered suffix instead of overwriting an existing capture.
+
 Calculator file browser
 -----------------------
 
 Press **Browse calculator files** to read the calculator directory. The
 sortable table shows each decoded variable name and type together with its
-byte size and RAM or Archive location.
+byte size and RAM or Archive location. Opening or clicking the **Calculator
+Files** tab reads a fresh directory. Successful variable, picture, Python,
+project, and Archive uploads also refresh the table automatically while
+preserving any selection whose calculator identity still exists.
 
 Deleting calculator files
 -------------------------
 
 Select one or more rows in the calculator file table and press **Delete
 selected**. The confirmation lists each selected variable's name, type, and RAM
-or Archive location. The action cannot be undone. If a multi-file deletion fails
-partway through, the table removes the variables already deleted and the output
-identifies both the completed deletions and the variable that failed.
+or Archive location. For the calculator's built-in ``L1`` through ``L6`` list
+slots, this action clears every value but keeps the empty list registered in the
+List Editor. The calculator's default L1–L6 column layout is restored after a
+built-in list is added, replaced, or cleared. Custom lists and all other
+selected variables are removed. Cleared
+or deleted data cannot be recovered. If a multi-file operation fails partway
+through, the table removes only variables confirmed absent from a fresh
+calculator directory and the output identifies completed clears/deletions and
+the variable that failed.
+
+The standalone CLI provides the same operation with ``delete NAME[:TYPE]``.
+It prints the exact deletion plan and requires interactive confirmation. Pass
+``--yes`` for an intentional non-interactive invocation; ``rm`` is an alias.
+The plan and result label built-in list operations as ``CLEAR``/``CLEARED``.
+
+Saving calculator files to Archive
+----------------------------------
+
+Select one or more RAM rows and press **Save to Archive**. The plugin downloads
+each native variable envelope, restores its transfer checksum, re-saves it with
+the Archive target, and verifies that the calculator directory reports the new
+location. Completed variables remain marked as Archive if a later selection
+fails.
 
 Select one row and press **View / edit** to read its complete native Evo variable
 envelope. The viewer can save a lossless calculator file for every variable type.
@@ -103,13 +137,26 @@ window for calculators that are frequently reset or when one project is sent
 to several calculators.
 
 **Push project** fingerprints the configured target, calculator name, and
-source, then sends only entries changed since their last successful upload.
-Successful files are recorded individually, so retrying after a partial failure
-does not resend completed files. The optional always-rebuild setting disables
-this filtering. Uploads use one serial connection and the tool window displays
-file-count progress. Unsaved manifest and source editor changes are included.
-If the calculator cannot be reached, the action shows a clear troubleshooting
-pop-up; a partial failure still identifies completed and failed programs.
+source, then reads the live calculator directory. An entry is skipped only when
+its fingerprint is unchanged and a type-15 program with the configured name and
+RAM/Archive target is present. Deleting or moving a project program on the
+calculator therefore makes that entry pending even when its local source has not
+changed. Successful files are recorded individually, so retrying after a partial
+failure does not resend completed files that remain present. The optional
+always-rebuild setting disables this filtering. Uploads use one serial connection
+and the tool window displays file-count progress. Unsaved manifest and source
+editor changes are included. If the calculator cannot be reached, the action
+shows a clear troubleshooting pop-up; a partial failure still identifies
+completed and failed programs.
+
+**Pull project** downloads every type-15 Python program, decodes its AppVar
+source as UTF-8, and rebuilds the local source files and project manifest.
+Existing manifest paths are reused by calculator program name, while new
+programs receive deterministic lowercase ``.py`` filenames. RAM/Archive targets
+are preserved. The confirmation identifies local files whose contents differ;
+those files are not overwritten unless the user explicitly chooses
+**Overwrite and Pull**. Pulled files are recorded as synchronized so a normal
+push does not immediately resend them.
 
 PowerShell and Explorer sender
 ------------------------------
@@ -126,11 +173,23 @@ keep ``ti84-evo.ps1`` beside ``ti84-evo-cli.jar``, and run from that folder:
    .\ti84-evo.ps1 send                         # changed manifest entries
    .\ti84-evo.ps1 send --always-rebuild        # every manifest entry
    .\ti84-evo.ps1 send --archive .\scripts     # applicable .py files
+   .\ti84-evo.ps1 pull --project .              # all calculator Python programs
+   .\ti84-evo.ps1 pull --project . --force      # permit local-file replacement
+   .\ti84-evo.ps1 archive MAIN:15               # save a variable to Archive
+   .\ti84-evo.ps1 delete MAIN:15                # confirm and delete a variable
+   .\ti84-evo.ps1 delete L1:1                   # clear L1 but keep its list slot
+   .\ti84-evo.ps1 delete --yes TEMP:15          # non-interactive deletion
    .\ti84-evo.ps1 install-context-menu         # current-user Explorer actions
 
 With no path, ``send`` uses ``.ti84-evo-project`` in the current directory. A
 file or directory argument sends applicable Python files directly, while
 ``--archive`` or ``--ram`` overrides the calculator destination.
+``pull`` reconstructs source files and ``.ti84-evo-project`` and refuses to
+replace changed local files unless ``--force`` is supplied. ``archive`` accepts
+one or more variable names; add ``:TYPE`` when a name is ambiguous. ``delete``
+uses the same selectors, prints the exact plan, and requires confirmation unless
+``--yes`` is supplied. Selecting built-in list ``L1`` through ``L6`` clears its
+contents and retains its calculator list slot; custom lists are deleted normally.
 
 The colored terminal UI shows an upload plan, connection state, aligned
 progress bars, storage targets, and a final summary. ``list-files`` performs a
@@ -151,11 +210,11 @@ import and member completion, parameter hints, quick documentation, and
 type-aware inspections. The stubs are an editor-only synthetic library: they
 are not installed as a desktop runtime and are never uploaded to the calculator.
 
-Single-file acceptance
-----------------------
+Hardware acceptance
+-------------------
 
 The single-file path was accepted on a physical TI-84 Evo on August 21, 2026:
 a 29-byte Python source was uploaded as ``EVOTEST`` to RAM, the plugin reported
 the completed transfer, and a subsequent directory read returned the new
 type-15 program. Multi-file project push still requires separate physical
-acceptance.
+acceptance, as do Archive-save and project-pull operations.

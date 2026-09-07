@@ -66,7 +66,16 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
     }
 
     /** Sends an already-built Evo variable envelope over a complete Kermit transaction. */
-    internal fun uploadPayload(url: String, payload: ByteArray): Int {
+    internal fun uploadPayload(url: String, payload: ByteArray): Int =
+        uploadPayloads(listOf(url to payload))
+
+    /** Sends one or more payloads in a shared Kermit session. */
+    internal fun uploadPayloads(
+        payloads: List<Pair<String, ByteArray>>,
+        delayBetweenMillis: Long = 0,
+    ): Int {
+        require(payloads.isNotEmpty()) { "at least one upload payload is required" }
+        require(delayBetweenMillis >= 0) { "upload delay cannot be negative" }
         val session = KermitPacketCodec.Session()
         var sequence = 0
         var packetCount = 0
@@ -78,10 +87,13 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
         }
 
         send('S', sendInit)
-        send('F', url.toByteArray(StandardCharsets.UTF_8))
-        send('A', fileAttributes(payload.size))
-        for (chunk in KermitPacketCodec.encodeDataChunks(payload, session.dataChunkSize)) send('D', chunk)
-        send('Z')
+        payloads.forEachIndexed { index, (url, payload) ->
+            send('F', url.toByteArray(StandardCharsets.UTF_8))
+            send('A', KermitPacketCodec.buildFileAttributes(payload.size))
+            for (chunk in KermitPacketCodec.encodeDataChunks(payload, session.dataChunkSize)) send('D', chunk)
+            send('Z')
+            if (delayBetweenMillis > 0 && index < payloads.lastIndex) Thread.sleep(delayBetweenMillis)
+        }
         send('B')
         return packetCount
     }
@@ -132,6 +144,11 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
 
             when (response.type) {
                 'Y' -> {
+                    if (response.sequence != sequence) {
+                        throw EvoUnexpectedFrameException(
+                            "ack sequence mismatch for $type: expected $sequence, got ${response.sequence}",
+                        )
+                    }
                     if (type == 'S') {
                         session.updateFromSendInit(response.data)
                     }
@@ -153,21 +170,6 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
         )
     }
 
-    private fun fileAttributes(payloadLength: Int): ByteArray = KermitPacketCodec.concat(
-        fileAttribute('"', "B8"),
-        fileAttribute('1', payloadLength.toString()),
-        fileAttribute('@', ""),
-    )
-
-    private fun fileAttribute(tag: Char, value: String): ByteArray {
-        val bytes = value.toByteArray(StandardCharsets.US_ASCII)
-        require(bytes.size <= 94)
-        return KermitPacketCodec.concat(
-            byteArrayOf(tag.code.toByte(), (bytes.size + 0x20).toByte()),
-            bytes,
-        )
-    }
-
     private fun transferError(data: ByteArray): String {
         val text = data.toString(StandardCharsets.UTF_8).trim()
         if (text.isNotEmpty() && text.all { !it.isISOControl() }) {
@@ -176,7 +178,8 @@ class EvoPythonTransfer(private val transport: EvoTransport) {
                 "NM" to "not enough memory",
                 "FL" to "flash/storage error",
                 "IN" to "invalid request",
-                "NV" to "variable already exists",
+                "NV" to "version too new",
+                "VE" to "variable already exists",
                 "DP" to "invalid data payload",
                 "BZ" to "calculator busy",
                 "LB" to "low battery",
