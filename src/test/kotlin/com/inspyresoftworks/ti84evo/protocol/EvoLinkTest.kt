@@ -191,7 +191,6 @@ class EvoLinkTest {
         val empty = nativeList(entry.tokenName, length = 0, data = byteArrayOf())
         val responses = ArrayDeque<ByteArray>().apply {
             addAll(variableRead(entry, populated))
-            addAll(directoryRead())
             addAll(sendAcks(EvoVariablePayload.transferUrl(archived = false)))
             addAll(directoryRead(directoryEntry(entry.tokenName, archived = false, type = 1, size = 4)))
             addAll(variableRead(entry, empty))
