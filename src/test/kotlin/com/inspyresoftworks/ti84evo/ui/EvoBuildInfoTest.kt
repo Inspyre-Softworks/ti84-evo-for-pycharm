@@ -1,11 +1,14 @@
 package com.inspyresoftworks.ti84evo.ui
 
+import java.nio.file.Files
+import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class EvoBuildInfoTest {
     @Test
     fun packagedVersionMatchesRelease() {
-        assertEquals("0.3.1", EvoBuildInfo.version)
+        val releaseVersion = Files.readString(Path.of("VERSION")).trim()
+        assertEquals(releaseVersion, EvoBuildInfo.version)
     }
 }
