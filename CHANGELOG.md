@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+- Add this release section so Marketplace update notes can be generated during build and publishing.
+
 ## 0.3.1
 
 - Compare the installed plugin with the latest JetBrains Marketplace release, label newer builds as developmental, and flag version or SHA-256 mismatches in the footer and About window.
