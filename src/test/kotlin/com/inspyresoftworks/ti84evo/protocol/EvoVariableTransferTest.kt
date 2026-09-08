@@ -35,7 +35,7 @@ class EvoVariableTransferTest {
 
     @Test
     fun `archive keeps entry when upload final ack is lost but directory shows archived`() {
-        val entry = EvoDirectoryEntry("A", type = 0, size = 8, archived = false, tokenName = tokenWords(0xD005))
+        val entry = EvoDirectoryEntry("A", type = 0, size = 8, archived = false, tokenName = tokenWords(0xE800))
         val rawVariable = byteArrayOf(0xA1.toByte(), 0x61, 0x41, 0x01)
         val responses = ArrayDeque<ByteArray>().apply {
             addAll(variableRead(entry, rawVariable))
