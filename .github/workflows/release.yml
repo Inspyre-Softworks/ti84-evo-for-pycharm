@@ -28,6 +28,7 @@ jobs:
         shell: bash
         env:
           BEFORE_SHA: ${{ github.event.before }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           version="$(tr -d '\r\n' < VERSION)"
@@ -42,8 +43,19 @@ jobs:
           fi
 
           changed=false
+          release_state=published
           if [[ "$version" != "$previous" ]]; then
             changed=true
+            release_state=version-changed
+          elif gh release view "$version" --json isDraft > /dev/null 2>&1; then
+            is_draft="$(gh release view "$version" --json isDraft --jq '.isDraft')"
+            if [[ "$is_draft" == 'true' ]]; then
+              changed=true
+              release_state=draft
+            fi
+          else
+            changed=true
+            release_state=missing
           fi
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -52,6 +64,7 @@ jobs:
             echo "### Release detection"
             echo "- Previous version: ${previous:-not present}"
             echo "- Current version: $version"
+            echo "- Release state: $release_state"
             echo "- Release required: $changed"
           } >> "$GITHUB_STEP_SUMMARY"
 

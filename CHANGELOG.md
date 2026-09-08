@@ -2,7 +2,9 @@
 
 ## 0.4.0
 
-- Add this release section so Marketplace update notes can be generated during build and publishing.
+- Keep PyCharm responsive while pulled project files and their manifest are written to disk.
+- Clear built-in lists without deleting them first, preserving the calculator's default L1-L6 List Editor columns.
+- Confirm Archive moves from the calculator directory when the final transfer acknowledgement is lost.
 
 ## 0.3.1
 
