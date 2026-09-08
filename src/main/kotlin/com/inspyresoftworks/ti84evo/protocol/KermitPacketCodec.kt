@@ -108,6 +108,7 @@ object KermitPacketCodec {
         raw: ByteArray,
         session: Session? = null,
         checkType: Int = session?.checkType ?: 1,
+        validateExtendedHeaderCheck: Boolean = true,
     ): Packet {
         if (raw.size < 6 || u(raw.first()) != SOH || u(raw.last()) != CR) {
             throw EvoFrameException("invalid Kermit packet envelope")
@@ -129,7 +130,7 @@ object KermitPacketCodec {
                 throw EvoFrameException("extended Kermit packet is too short")
             }
             val header = body.copyOfRange(0, 5)
-            if (u(body[5]) != u(blockCheck(header, 1).single())) {
+            if (validateExtendedHeaderCheck && u(body[5]) != u(blockCheck(header, 1).single())) {
                 throw EvoFrameException("extended Kermit header checksum mismatch")
             }
             checked = body.copyOfRange(0, body.size - checkType)
@@ -159,8 +160,88 @@ object KermitPacketCodec {
         )
     }
 
+    /** Build the Kermit A-packet attributes used by Evo resource and variable transfers. */
+    fun buildFileAttributes(payloadLength: Int): ByteArray {
+        require(payloadLength >= 0) { "payload length cannot be negative" }
+        return concat(
+            fileAttribute('"', "B8"),
+            fileAttribute('1', payloadLength.toString()),
+            fileAttribute('@', ""),
+        )
+    }
+
+    /** Read the decimal payload length from the Evo's Kermit A-packet attributes. */
+    fun parseFileLengthAttributes(data: ByteArray): Int {
+        val prefix = "\"\"B81".encodeToByteArray()
+        val suffix = "@ ".encodeToByteArray()
+
+        if (
+            data.size < prefix.size + 1 + suffix.size ||
+            !data.copyOfRange(0, prefix.size).contentEquals(prefix) ||
+            !data.copyOfRange(data.size - suffix.size, data.size).contentEquals(suffix)
+        ) {
+            throw EvoProtocolException("unrecognized Kermit file attributes")
+        }
+
+        val count = unchar(u(data[prefix.size]))
+        val digitStart = prefix.size + 1
+        val digitEnd = data.size - suffix.size
+        val digits = data.copyOfRange(digitStart, digitEnd).decodeToString()
+        if (count != digits.length || digits.isEmpty() || digits.any { !it.isDigit() }) {
+            throw EvoProtocolException("Kermit file length digit count does not match decimal length")
+        }
+        return digits.toIntOrNull()
+            ?: throw EvoProtocolException("Kermit file length is too large")
+    }
+
     /** Encode a binary payload into Kermit's quoted/repeated data stream. */
     fun encodeData(payload: ByteArray): ByteArray = concat(*encodeElements(payload).toTypedArray())
+
+    /**
+     * Encode the calculator's observed resource D-packet form. Unlike negotiated
+     * uploads, this legacy-compatible form quotes only packet framing bytes.
+     */
+    fun encodeResourceData(payload: ByteArray): ByteArray {
+        val output = ByteArrayOutputStream(payload.size)
+        payload.forEach { byte ->
+            val value = u(byte)
+            if (value == SOH || value == CR || value == CONTROL_QUOTE) {
+                output.write(CONTROL_QUOTE)
+                output.write(value xor 0x40)
+            } else {
+                output.write(value)
+            }
+        }
+        return output.toByteArray()
+    }
+
+    /** Decode the limited quoting used by calculator resource responses. */
+    fun decodeResourceData(encoded: ByteArray): ByteArray {
+        val output = ByteArrayOutputStream(encoded.size)
+        var index = 0
+        while (index < encoded.size) {
+            val value = u(encoded[index])
+            if (value == CONTROL_QUOTE) {
+                if (index + 1 >= encoded.size) {
+                    throw EvoProtocolException("truncated resource D-packet escape sequence")
+                }
+                output.write(u(encoded[index + 1]) xor 0x40)
+                index += 2
+            } else {
+                output.write(value)
+                index += 1
+            }
+        }
+        return output.toByteArray()
+    }
+
+    /** Decode the two printable base-95 length characters in a long packet. */
+    fun decodeLongPacketLength(high: Int, low: Int): Int {
+        if (high !in 0x20..0x7E || low !in 0x20..0x7E) {
+            throw EvoFrameException("extended length contains a non-printable base-95 digit")
+        }
+        return unchar(high) * 95 + unchar(low)
+    }
 
     /** Decode Kermit's default control quoting and repeat encoding. */
     fun decodeData(encoded: ByteArray): ByteArray {
@@ -265,6 +346,15 @@ object KermitPacketCodec {
             value == REPEAT_QUOTE -> byteArrayOf(CONTROL_QUOTE.toByte(), REPEAT_QUOTE.toByte())
             else -> byteArrayOf(value.toByte())
         }
+    }
+
+    private fun fileAttribute(tag: Char, value: String): ByteArray {
+        val bytes = value.encodeToByteArray()
+        require(bytes.size <= 94) { "Kermit file attribute is too long" }
+        return concat(
+            byteArrayOf(tag.code.toByte(), tochar(bytes.size).toByte()),
+            bytes,
+        )
     }
 
     private fun blockCheck(data: ByteArray, checkType: Int): ByteArray = when (checkType) {

@@ -16,9 +16,22 @@ class EvoUnsupportedException(message: String) : EvoProtocolException(message)
 
 class EvoVariableDeleteException(
     val failedEntry: EvoDirectoryEntry,
-    val deletedEntries: List<EvoDirectoryEntry>,
+    val completedEntries: List<EvoDirectoryEntry>,
     cause: Throwable,
 ) : EvoProtocolException(
-    "Failed to delete ${failedEntry.name} after deleting ${deletedEntries.size} calculator files",
+    "Failed to ${if (isPersistentBuiltInList(failedEntry)) "clear" else "delete"} ${failedEntry.name} " +
+        "after completing ${completedEntries.size} calculator file operations",
+    cause,
+) {
+    val deletedEntries: List<EvoDirectoryEntry> = completedEntries.filterNot(::isPersistentBuiltInList)
+    val clearedEntries: List<EvoDirectoryEntry> = completedEntries.filter(::isPersistentBuiltInList)
+}
+
+class EvoVariableArchiveException(
+    val failedEntry: EvoDirectoryEntry,
+    val archivedEntries: List<EvoDirectoryEntry>,
+    cause: Throwable,
+) : EvoProtocolException(
+    "Failed to archive ${failedEntry.name} after archiving ${archivedEntries.size} calculator files",
     cause,
 )

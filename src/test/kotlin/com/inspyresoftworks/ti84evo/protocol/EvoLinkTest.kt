@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class EvoLinkTest {
@@ -60,7 +61,7 @@ class EvoLinkTest {
     }
 
     @Test
-    fun `delete variables sends one transaction for each selected entry`() {
+    fun `delete variables use negotiated data encoding and verify each selected entry`() {
         val ramName = tokenWords(0xE811, 0xE800, 0xE80C)
         val archiveName = tokenWords(0xE800, 0xE811, 0xE802)
         val entries = listOf(
@@ -68,30 +69,171 @@ class EvoLinkTest {
             EvoDirectoryEntry("ARC", 15, 11, true, archiveName),
         )
         val responses = ArrayDeque<ByteArray>().apply {
-            entries.forEach { addAll(sendAcks(buildDeleteRequest(it).decodeToString())) }
+            addAll(sendAcks(buildDeleteRequest(entries[0]).decodeToString()))
+            addAll(directoryRead(directoryEntry(archiveName, archived = true)))
+            addAll(sendAcks(buildDeleteRequest(entries[1]).decodeToString()))
+            addAll(directoryRead())
         }
-        val writes = mutableListOf<EvoFrame>()
+        val writes = mutableListOf<KermitPacketCodec.Packet>()
+        val session = KermitPacketCodec.Session()
         val transport = object : EvoTransport {
             override val description = "test"
             override fun open() = Unit
             override fun close() = Unit
             override fun write(data: ByteArray) {
-                writes += EvoFrameCodec.decode(data)
+                val packet = KermitPacketCodec.parsePacket(data, session)
+                writes += packet
+                if (packet.type == 'S') session.updateFromSendInit(sendInitAck)
             }
-            override fun readFrameBytes(): ByteArray = responses.removeFirst()
-            override fun readPacketBytes(): ByteArray = error("not used")
+            override fun readPacketBytes(): ByteArray = responses.removeFirst()
         }
 
-        val deleted = EvoLink(transport).deleteVariables(entries)
+        val progress = mutableListOf<String>()
+        val deleted = EvoLink(transport).deleteVariables(entries) { entry, completed, total ->
+            progress += "$completed/$total:${entry.name}"
+        }
 
         assertEquals(listOf("RAM", "ARC"), deleted.map { it.name })
+        assertEquals(listOf("1/2:RAM", "2/2:ARC"), progress)
         val deleteRequests = writes
-            .filter { it.command == EvoFrameCodec.CMD_F }
-            .map { it.payload.decodeToString() }
+            .filter { it.type == 'F' }
+            .map { it.data.decodeToString() }
             .filter { it.startsWith("hh01/del/") }
         assertEquals(2, deleteRequests.size)
         assertTrue(deleteRequests[0].contains("%EE%A0%91%EE%A0%80%EE%A0%8C"))
         assertTrue(deleteRequests[1].contains("%EE%A0%80%EE%A0%91%EE%A0%82"))
+        assertContentEquals(
+            KermitPacketCodec.encodeData(byteArrayOf(0)),
+            writes.first { it.type == 'D' }.data,
+        )
+        assertTrue(responses.isEmpty())
+    }
+
+    @Test
+    fun `delete variables reports entries completed before a later failure`() {
+        val first = EvoDirectoryEntry("FIRST", 15, 10, false, tokenWords(0xE801))
+        val second = EvoDirectoryEntry("SECOND", 15, 11, false, tokenWords(0xE802))
+        val responses = ArrayDeque<ByteArray>().apply {
+            addAll(sendAcks(buildDeleteRequest(first).decodeToString()))
+            addAll(directoryRead(directoryEntry(second.tokenName, archived = false)))
+            repeat(2) {
+                addAll(deleteFailure("denied"))
+                addAll(directoryRead(directoryEntry(second.tokenName, archived = false)))
+            }
+        }
+        val session = KermitPacketCodec.Session()
+        val transport = object : EvoTransport {
+            override val description = "test"
+            override fun open() = Unit
+            override fun close() = Unit
+            override fun write(data: ByteArray) {
+                val packet = KermitPacketCodec.parsePacket(data, session)
+                if (packet.type == 'S') session.updateFromSendInit(sendInitAck)
+            }
+            override fun readPacketBytes(): ByteArray = responses.removeFirst()
+        }
+
+        val error = assertFailsWith<EvoVariableDeleteException> {
+            EvoLink(transport).deleteVariables(listOf(first, second))
+        }
+
+        assertEquals("SECOND", error.failedEntry.name)
+        assertEquals(listOf("FIRST"), error.deletedEntries.map { it.name })
+        assertTrue(responses.isEmpty())
+    }
+
+    @Test
+    fun `acknowledged delete is rejected when the calculator directory still contains the variable`() {
+        val entry = EvoDirectoryEntry("STUBBORN", 15, 10, false, tokenWords(0xE812))
+        val responses = ArrayDeque<ByteArray>().apply {
+            repeat(2) {
+                addAll(sendAcks(buildDeleteRequest(entry).decodeToString()))
+                addAll(directoryRead(directoryEntry(entry.tokenName, archived = false)))
+            }
+        }
+        val progress = mutableListOf<String>()
+        val writes = mutableListOf<KermitPacketCodec.Packet>()
+        val session = KermitPacketCodec.Session()
+        val transport = object : EvoTransport {
+            override val description = "test"
+            override fun open() = Unit
+            override fun close() = Unit
+            override fun write(data: ByteArray) {
+                val packet = KermitPacketCodec.parsePacket(data, session)
+                writes += packet
+                if (packet.type == 'S') session.updateFromSendInit(sendInitAck)
+            }
+            override fun readPacketBytes(): ByteArray = responses.removeFirst()
+        }
+
+        val error = assertFailsWith<EvoVariableDeleteException> {
+            EvoLink(transport).deleteVariables(listOf(entry)) { deleted, _, _ ->
+                progress += deleted.name
+            }
+        }
+
+        assertEquals("STUBBORN", error.failedEntry.name)
+        assertTrue(error.deletedEntries.isEmpty())
+        assertTrue(progress.isEmpty())
+        assertEquals(
+            2,
+            writes.count { it.type == 'F' && it.data.decodeToString().startsWith("hh01/del/") },
+        )
+        assertTrue(responses.isEmpty())
+    }
+
+    @Test
+    fun `built-in list deletion clears and retains the list slot`() {
+        val nativeTokenName = tokenWords(0xE830)
+        val entry = EvoDirectoryEntry("L1", 1, 24, false, nativeTokenName + byteArrayOf(0, 0))
+        val populatedData = tokenWords(0x00E5, 0x0001, 0x0001, 0x001F, 0x00D9) + byteArrayOf(0, 0, 0)
+        val populated = nativeList(entry.tokenName, length = 1, data = populatedData)
+        val empty = nativeList(entry.tokenName, length = 0, data = byteArrayOf())
+        val responses = ArrayDeque<ByteArray>().apply {
+            addAll(variableRead(entry, populated))
+            addAll(directoryRead())
+            addAll(sendAcks(EvoVariablePayload.transferUrl(archived = false)))
+            addAll(directoryRead(directoryEntry(entry.tokenName, archived = false, type = 1, size = 4)))
+            addAll(variableRead(entry, empty))
+            addAll(scancodeAcks())
+        }
+        val writes = mutableListOf<KermitPacketCodec.Packet>()
+        val session = KermitPacketCodec.Session()
+        val transport = object : EvoTransport {
+            override val description = "test"
+            override fun open() = Unit
+            override fun close() = Unit
+            override fun write(data: ByteArray) {
+                val packet = KermitPacketCodec.parsePacket(data, session)
+                writes += packet
+                if (packet.type == 'S') session.updateFromSendInit(sendInitAck)
+            }
+            override fun readPacketBytes(): ByteArray = responses.removeFirst()
+        }
+
+        val completed = EvoLink(transport).deleteVariables(listOf(entry))
+
+        assertEquals(listOf("L1"), completed.map { it.name })
+        assertEquals(4L, completed.single().size)
+        assertTrue(isPersistentBuiltInList(completed.single()))
+        assertEquals(0, writes.count { it.type == 'F' && it.data.decodeToString().startsWith("hh01/del/") })
+        val uploadStart = writes.indexOfFirst {
+            it.type == 'F' && it.data.decodeToString() == EvoVariablePayload.transferUrl(false)
+        }
+        assertTrue(uploadStart >= 0)
+        val uploaded = writes.drop(uploadStart + 1)
+            .takeWhile { it.type != 'Z' }
+            .filter { it.type == 'D' }
+            .flatMap { KermitPacketCodec.decodeData(it.data).asIterable() }
+            .toByteArray()
+        val uploadedInspection = EvoVariableFile.inspect(uploaded.dropLast(2).toByteArray())
+        assertContentEquals(nativeTokenName, uploadedInspection.metadata["name"] as ByteArray)
+        assertEquals(0L, uploadedInspection.fields["len"])
+        assertFalse("data" in uploadedInspection.fields)
+        assertEquals(
+            EvoListEditor.RESET_TO_DEFAULT_COLUMNS.size,
+            writes.count { it.type == 'F' && it.data.decodeToString() == EvoListEditor.SCANCODE_ENDPOINT },
+        )
         assertTrue(responses.isEmpty())
     }
 
@@ -102,36 +244,91 @@ class EvoLinkTest {
         }
     }
 
+    private val sendInit = byteArrayOf(
+        0x7E, 0x30, 0x20, 0x40, 0x2D, 0x23, 0x59,
+        0x31, 0x7E, 0x2E, 0x22, 0x35, 0x4D,
+    )
+
+    private val sendInitAck = byteArrayOf(
+        0x7E, 0x25, 0x20, 0x40, 0x2D, 0x23, 0x59,
+        0x31, 0x7E, 0x2E, 0x22, 0x35, 0x4D,
+    )
+
     private fun sendAcks(request: String): List<ByteArray> = listOf(
-        ack(0x20, byteArrayOf(0x7E, 0x25, 0x20, 0x40, 0x2D, 0x23, 0x59, 0x31, 0x7E, 0x2E, 0x22, 0x35, 0x4D)),
-        ack(0x21, request.encodeToByteArray()),
-        ack(0x22, byteArrayOf('Y'.code.toByte())),
-        ack(0x23),
-        ack(0x24),
-        ack(0x25),
+        ack(0, sendInitAck),
+        ack(1, request.encodeToByteArray()),
+        ack(2, byteArrayOf('Y'.code.toByte())),
+        ack(3),
+        ack(4),
+        ack(5),
     )
 
-    private fun receiveTransaction(data: ByteArray): List<ByteArray> = listOf(
-        frame(0x20, EvoFrameCodec.CMD_S, byteArrayOf(0x7E, 0x30)),
-        frame(0x21, EvoFrameCodec.CMD_F, "directory".encodeToByteArray()),
-        frame(0x22, EvoFrameCodec.CMD_A, EvoFrameCodec.buildLengthAnnouncement(data.size)),
-        frame(0x23, EvoFrameCodec.CMD_D, data),
-        frame(0x24, EvoFrameCodec.CMD_Z),
-        frame(0x25, EvoFrameCodec.CMD_B),
+    private fun deleteFailure(message: String): List<ByteArray> = listOf(
+        ack(0, sendInitAck),
+        KermitPacketCodec.makePacket(1, 'E', message.encodeToByteArray()),
     )
 
-    private fun directoryEntry(tokenName: ByteArray, archived: Boolean): ByteArray = cborMap(
+    private fun directoryRead(vararg entries: ByteArray): List<ByteArray> {
+        val request = buildGetRequest("hh01/inf/res?name=directory&gotohome=1").decodeToString()
+        val payload = cborMap("data" to cborArray(*entries))
+        return resourceRead(request, payload)
+    }
+
+    private fun variableRead(entry: EvoDirectoryEntry, payload: ByteArray): List<ByteArray> {
+        val request = buildGetRequest("hh01/xfr/${buildVariableResourceName(entry)}").decodeToString()
+        return resourceRead(request, payload)
+    }
+
+    private fun resourceRead(request: String, payload: ByteArray): List<ByteArray> =
+        sendAcks(request) + listOf(
+            KermitPacketCodec.makePacket(0, 'S', sendInit),
+            KermitPacketCodec.makePacket(1, 'F', "directory".encodeToByteArray()),
+            KermitPacketCodec.makePacket(2, 'A', KermitPacketCodec.buildFileAttributes(payload.size)),
+            KermitPacketCodec.makePacket(3, 'D', KermitPacketCodec.encodeData(payload)),
+            KermitPacketCodec.makePacket(4, 'Z'),
+            KermitPacketCodec.makePacket(5, 'B'),
+        )
+
+    private fun directoryEntry(
+        tokenName: ByteArray,
+        archived: Boolean,
+        type: Int = 15,
+        size: Int = 10,
+    ): ByteArray = cborMap(
         "tokName" to cborBytes(tokenName),
-        "type" to cborUnsigned(15),
-        "size" to cborUnsigned(10),
+        "type" to cborUnsigned(type),
+        "size" to cborUnsigned(size),
         "mem" to cborBoolean(archived),
     )
 
-    private fun ack(sequence: Int, payload: ByteArray = byteArrayOf()): ByteArray =
-        frame(sequence, EvoFrameCodec.CMD_Y, payload)
+    private fun nativeList(tokenName: ByteArray, length: Int, data: ByteArray): ByteArray {
+        val fields = mutableListOf(
+            "metaData" to cborMap(
+                "type" to cborUnsigned(1),
+                "version" to cborUnsigned(1),
+                "name" to cborBytes(tokenName),
+            ),
+            "version" to cborUnsigned(1),
+            "type" to cborUnsigned(0),
+            "len" to cborUnsigned(length),
+        )
+        if (length > 0) {
+            fields += "arraylen" to cborUnsigned((data.size - 3) / 2)
+            fields += "size" to cborUnsigned(data.size)
+        }
+        fields += "data" to cborBytes(data)
+        return cborMap(*fields.toTypedArray())
+    }
 
-    private fun frame(sequence: Int, command: Int, payload: ByteArray = byteArrayOf()): ByteArray =
-        EvoFrameCodec.encode(EvoFrame(sequence, command, payload))
+    private fun ack(sequence: Int, payload: ByteArray = byteArrayOf()): ByteArray =
+        KermitPacketCodec.makePacket(sequence, 'Y', payload)
+
+    private fun scancodeAcks(): List<ByteArray> = buildList {
+        add(ack(0, sendInitAck))
+        repeat(EvoListEditor.RESET_TO_DEFAULT_COLUMNS.size * 4 + 1) { offset ->
+            add(ack(offset + 1))
+        }
+    }
 
     private fun cborMap(vararg entries: Pair<String, ByteArray>): ByteArray = concat(
         cborLength(5, entries.size),

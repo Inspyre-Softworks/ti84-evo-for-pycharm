@@ -55,7 +55,7 @@ class CborReader(private val data: ByteArray) {
                 parts += readByteString(initial and 0x1F)
             }
             readByte()
-            return EvoFrameCodec.concat(*parts.toTypedArray())
+            return KermitPacketCodec.concat(*parts.toTypedArray())
         }
 
         val length = readUnsigned(additional).toIntChecked("byte string")

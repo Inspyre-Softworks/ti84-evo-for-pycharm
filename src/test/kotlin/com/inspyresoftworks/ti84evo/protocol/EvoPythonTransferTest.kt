@@ -3,7 +3,9 @@ package com.inspyresoftworks.ti84evo.protocol
 import com.inspyresoftworks.ti84evo.transport.EvoTransport
 import java.util.ArrayDeque
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
@@ -63,6 +65,31 @@ class EvoPythonTransferTest {
         assertEquals(listOf("1/2:RAMAPP", "2/2:ARCAPP"), progress)
     }
 
+    @Test
+    fun `upload validates acknowledged sequence`() {
+        val error = assertFailsWith<EvoUnexpectedFrameException> {
+            EvoPythonTransfer(ErrorTransport('Y', byteArrayOf(), responseSequence = 1))
+                .upload("HELLO", "print('hello')\n")
+        }
+
+        assertContains(error.message.orEmpty(), "ack sequence mismatch for S")
+    }
+
+    @Test
+    fun `upload reports corrected NV and VE meanings`() {
+        val nv = assertFailsWith<EvoProtocolException> {
+            EvoPythonTransfer(ErrorTransport('E', "NV".encodeToByteArray()))
+                .upload("HELLO", "print('hello')\n")
+        }
+        val ve = assertFailsWith<EvoProtocolException> {
+            EvoPythonTransfer(ErrorTransport('E', "VE".encodeToByteArray()))
+                .upload("HELLO", "print('hello')\n")
+        }
+
+        assertContains(nv.message.orEmpty(), "NV (version too new)")
+        assertContains(ve.message.orEmpty(), "VE (variable already exists)")
+    }
+
     private class AckingTransport : EvoTransport {
         override val description: String = "test"
         val types = mutableListOf<Char>()
@@ -77,8 +104,6 @@ class EvoPythonTransferTest {
 
         override fun open() = Unit
         override fun close() = Unit
-        override fun readFrameBytes(): ByteArray = error("not used")
-
         override fun write(data: ByteArray) {
             val packet = KermitPacketCodec.parsePacket(data, session)
             types += packet.type
@@ -94,5 +119,21 @@ class EvoPythonTransferTest {
         }
 
         override fun readPacketBytes(): ByteArray = responses.removeFirst()
+    }
+
+    private class ErrorTransport(
+        private val responseType: Char,
+        private val responseData: ByteArray,
+        private val responseSequence: Int = 0,
+    ) : EvoTransport {
+        override val description: String = "test"
+        private lateinit var response: ByteArray
+
+        override fun open() = Unit
+        override fun close() = Unit
+        override fun write(data: ByteArray) {
+            response = KermitPacketCodec.makePacket(responseSequence, responseType, responseData)
+        }
+        override fun readPacketBytes(): ByteArray = response
     }
 }

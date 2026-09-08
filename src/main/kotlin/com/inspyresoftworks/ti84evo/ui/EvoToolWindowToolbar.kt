@@ -19,6 +19,7 @@ internal data class EvoToolWindowActions(
     val configureProject: () -> Unit,
     val configureTransfers: () -> Unit,
     val pushProject: () -> Unit,
+    val pullProject: () -> Unit,
     val showAbout: () -> Unit,
 )
 
@@ -70,6 +71,12 @@ internal object EvoToolWindowToolbar {
                 "Upload every file declared in the TI-84 Evo project manifest",
                 AllIcons.Actions.RunAll,
                 callbacks.pushProject,
+            ))
+            add(toolbarAction(
+                "Pull project",
+                "Download every Python program from the calculator into this project",
+                AllIcons.Actions.Download,
+                callbacks.pullProject,
             ))
             addSeparator()
             add(toolbarAction(

@@ -1,10 +1,11 @@
 package com.inspyresoftworks.ti84evo.protocol
 
 import com.inspyresoftworks.ti84evo.transport.EvoTransport
+import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
 /**
- * Confirmed S/F/A/D/Z/B Evo transaction ladder.
+ * Confirmed S/F/A/D/Z/B Evo transaction ladder using standard Kermit packets.
  *
  * Author: Taylor B. | Inspyre-Softworks.
  */
@@ -13,42 +14,44 @@ class EvoTransactionEngine(private val transport: EvoTransport) {
         0x7E, 0x30, 0x20, 0x40, 0x2D, 0x23, 0x59, 0x31, 0x7E, 0x2E, 0x22, 0x35, 0x4D,
     )
 
-    private fun writeFrame(frame: EvoFrame, forceExtended: Boolean = false) {
-        transport.write(EvoFrameCodec.encode(frame, forceExtended))
-    }
-
-    private fun readFrame(): EvoFrame = EvoFrameCodec.decode(transport.readFrameBytes())
-
     private fun sessionAckPayload(payload: ByteArray): ByteArray {
         if (payload.size < 2) throw EvoProtocolException("S payload is too short to acknowledge")
         return payload.copyOf().also { it[1] = 0x25 }
     }
 
-    private fun expectedAckPayload(frame: EvoFrame): ByteArray = when (frame.command) {
-        EvoFrameCodec.CMD_S -> sessionAckPayload(frame.payload)
-        EvoFrameCodec.CMD_F -> frame.payload
-        EvoFrameCodec.CMD_A -> byteArrayOf('Y'.code.toByte())
-        EvoFrameCodec.CMD_D, EvoFrameCodec.CMD_Z, EvoFrameCodec.CMD_B -> byteArrayOf()
-        else -> throw EvoUnsupportedException("ACK behavior for ${frame.commandText} is unresolved")
+    private fun expectedAckPayload(type: Char, data: ByteArray): ByteArray = when (type) {
+        'S' -> sessionAckPayload(data)
+        'F' -> data
+        'A' -> byteArrayOf('Y'.code.toByte())
+        'D', 'Z', 'B' -> byteArrayOf()
+        else -> throw EvoUnsupportedException("ACK behavior for $type is unresolved")
     }
 
-    private fun sendAndAck(frame: EvoFrame) {
-        writeFrame(frame)
-        val ack = readFrame()
-        if (ack.command != EvoFrameCodec.CMD_Y) {
-            val message = if (ack.command == 'E'.code) {
-                "expected Y ack for ${frame.commandText}, got ${ack.commandText}: ${formatErrorPayload(ack.payload)}"
+    private fun sendAndAck(
+        sequence: Int,
+        type: Char,
+        data: ByteArray,
+        session: KermitPacketCodec.Session,
+    ): KermitPacketCodec.Packet {
+        transport.write(KermitPacketCodec.makePacket(sequence, type, data, session))
+        val ack = KermitPacketCodec.parsePacket(transport.readPacketBytes(), session)
+        if (ack.type != 'Y') {
+            val message = if (ack.type == 'E') {
+                "expected Y ack for $type, got E: ${formatErrorPayload(ack.data)}"
             } else {
-                "expected Y ack for ${frame.commandText}, got ${ack.commandText}"
+                "expected Y ack for $type, got ${ack.type}"
             }
             throw EvoUnexpectedFrameException(message)
         }
-        if (ack.sequence != frame.sequence) {
-            throw EvoUnexpectedFrameException("ack sequence mismatch for ${frame.commandText}")
+        if (ack.sequence != sequence) {
+            throw EvoUnexpectedFrameException(
+                "ack sequence mismatch for $type: expected $sequence, got ${ack.sequence}",
+            )
         }
-        if (!ack.payload.contentEquals(expectedAckPayload(frame))) {
-            throw EvoUnexpectedFrameException("unexpected Y payload for ${frame.commandText}")
+        if (!ack.data.contentEquals(expectedAckPayload(type, data))) {
+            throw EvoUnexpectedFrameException("unexpected Y payload for $type")
         }
+        return ack
     }
 
     private fun formatErrorPayload(payload: ByteArray): String {
@@ -62,87 +65,100 @@ class EvoTransactionEngine(private val transport: EvoTransport) {
     }
 
     fun sendSmallTransaction(request: ByteArray, data: ByteArray) {
-        if (6 + EvoFrameCodec.escapeDPayload(data).size > EvoFrameCodec.MAX_SHORT_TOTAL) {
-            throw EvoUnsupportedException("large outgoing D transfer requires a confirmed initial extended-D AUX value")
+        val session = KermitPacketCodec.Session()
+        var sequence = 0
+
+        fun send(type: Char, payload: ByteArray = byteArrayOf()): KermitPacketCodec.Packet {
+            val ack = sendAndAck(sequence, type, payload, session)
+            sequence = (sequence + 1) % 64
+            return ack
         }
 
-        val sequence = EvoSequence()
-        sendAndAck(EvoFrame(sequence.take(), EvoFrameCodec.CMD_S, sessionPayload))
-        sendAndAck(EvoFrame(sequence.take(), EvoFrameCodec.CMD_F, request))
-        sendAndAck(EvoFrame(sequence.take(), EvoFrameCodec.CMD_A, EvoFrameCodec.buildLengthAnnouncement(data.size)))
-        sendAndAck(EvoFrame(sequence.take(), EvoFrameCodec.CMD_D, data))
-        sendAndAck(EvoFrame(sequence.take(), EvoFrameCodec.CMD_Z))
-        sendAndAck(EvoFrame(sequence.take(), EvoFrameCodec.CMD_B))
+        val sendInitAck = send('S', sessionPayload)
+        session.updateFromSendInit(sendInitAck.data)
+        send('F', request)
+        send('A', KermitPacketCodec.buildFileAttributes(data.size))
+        send('D', KermitPacketCodec.encodeResourceData(data))
+        send('Z')
+        send('B')
     }
 
-    private fun sendY(received: EvoFrame, payload: ByteArray) {
-        writeFrame(EvoFrame(received.sequence, EvoFrameCodec.CMD_Y, payload))
+    private fun sendY(
+        received: KermitPacketCodec.Packet,
+        data: ByteArray,
+        session: KermitPacketCodec.Session,
+    ) {
+        transport.write(KermitPacketCodec.makePacket(received.sequence, 'Y', data, session))
     }
 
-    private fun validateSequence(frame: EvoFrame, expected: Int): Int {
-        if (frame.sequence != expected) {
+    private fun validateSequence(packet: KermitPacketCodec.Packet, expected: Int): Int {
+        if (packet.sequence != expected) {
             throw EvoUnexpectedFrameException(
-                "reverse transaction sequence mismatch: expected 0x%02X, got 0x%02X for %s"
-                    .format(expected, frame.sequence, frame.commandText),
+                "reverse transaction sequence mismatch: expected $expected, got ${packet.sequence} for ${packet.type}",
             )
         }
-        return if (expected == EvoFrameCodec.PRINTABLE_MAX) EvoFrameCodec.PRINTABLE_BASE else expected + 1
+        return (expected + 1) % 64
     }
 
     fun receiveTransaction(): Pair<ByteArray, ByteArray> {
-        var expectedSequence = EvoFrameCodec.PRINTABLE_BASE
+        val session = KermitPacketCodec.Session()
+        var expectedSequence = 0
 
-        var frame = readFrame()
-        expectedSequence = validateSequence(frame, expectedSequence)
-        if (frame.command != EvoFrameCodec.CMD_S) unexpected("S", frame)
-        sendY(frame, sessionAckPayload(frame.payload))
+        fun readPacket(): KermitPacketCodec.Packet =
+            KermitPacketCodec.parsePacket(
+                transport.readPacketBytes(),
+                session,
+                validateExtendedHeaderCheck = false,
+            )
 
-        frame = readFrame()
-        expectedSequence = validateSequence(frame, expectedSequence)
-        if (frame.command != EvoFrameCodec.CMD_F) unexpected("F", frame)
-        val resourceDescriptor = frame.payload.copyOf()
-        sendY(frame, frame.payload)
+        var packet = readPacket()
+        expectedSequence = validateSequence(packet, expectedSequence)
+        if (packet.type != 'S') unexpected("S", packet)
+        sendY(packet, sessionAckPayload(packet.data), session)
+        session.updateFromSendInit(packet.data)
 
-        frame = readFrame()
-        expectedSequence = validateSequence(frame, expectedSequence)
-        if (frame.command != EvoFrameCodec.CMD_A) unexpected("A", frame)
-        val expectedLength = EvoFrameCodec.parseLengthAnnouncement(frame.payload)
-        sendY(frame, byteArrayOf('Y'.code.toByte()))
+        packet = readPacket()
+        expectedSequence = validateSequence(packet, expectedSequence)
+        if (packet.type != 'F') unexpected("F", packet)
+        val resourceDescriptor = packet.data.copyOf()
+        sendY(packet, packet.data, session)
 
-        val decodedData = mutableListOf<Byte>()
-        val wireData = mutableListOf<Byte>()
+        packet = readPacket()
+        expectedSequence = validateSequence(packet, expectedSequence)
+        if (packet.type != 'A') unexpected("A", packet)
+        val expectedLength = KermitPacketCodec.parseFileLengthAttributes(packet.data)
+        sendY(packet, byteArrayOf('Y'.code.toByte()), session)
 
+        val wireData = ByteArrayOutputStream()
         while (true) {
-            frame = readFrame()
-            expectedSequence = validateSequence(frame, expectedSequence)
-            when (frame.command) {
-                EvoFrameCodec.CMD_D -> {
-                    frame.payload.forEach(decodedData::add)
-                    (frame.wirePayload ?: frame.payload).forEach(wireData::add)
-                    sendY(frame, byteArrayOf())
+            packet = readPacket()
+            expectedSequence = validateSequence(packet, expectedSequence)
+            when (packet.type) {
+                'D' -> {
+                    wireData.write(packet.data)
+                    sendY(packet, byteArrayOf(), session)
                 }
-                EvoFrameCodec.CMD_Z -> {
-                    sendY(frame, byteArrayOf())
+                'Z' -> {
+                    sendY(packet, byteArrayOf(), session)
                     break
                 }
-                else -> unexpected("D or Z", frame)
+                else -> unexpected("D or Z", packet)
             }
         }
 
-        frame = readFrame()
-        validateSequence(frame, expectedSequence)
-        if (frame.command != EvoFrameCodec.CMD_B) unexpected("B", frame)
-        sendY(frame, byteArrayOf())
+        packet = readPacket()
+        validateSequence(packet, expectedSequence)
+        if (packet.type != 'B') unexpected("B", packet)
+        sendY(packet, byteArrayOf(), session)
 
-        val resolved = EvoResourceCodec.resolve(
-            expectedLength,
-            decodedData.toByteArray(),
-            wireData.toByteArray(),
-        )
+        val encodedData = wireData.toByteArray()
+        val decodedData = runCatching { KermitPacketCodec.decodeResourceData(encodedData) }
+            .getOrDefault(encodedData)
+        val resolved = EvoResourceCodec.resolve(expectedLength, decodedData, encodedData)
         return Pair(resourceDescriptor, resolved.bytes)
     }
 
-    private fun unexpected(expected: String, frame: EvoFrame): Nothing {
-        throw EvoUnexpectedFrameException("expected $expected, got ${frame.commandText}")
+    private fun unexpected(expected: String, packet: KermitPacketCodec.Packet): Nothing {
+        throw EvoUnexpectedFrameException("expected $expected, got ${packet.type}")
     }
 }

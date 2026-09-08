@@ -16,26 +16,39 @@ import com.intellij.ui.table.JBTable
 import com.intellij.util.ui.JBUI
 import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonPayload
+import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectPuller
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
+import com.inspyresoftworks.ti84evo.protocol.EvoVariableArchiveException
 import com.inspyresoftworks.ti84evo.protocol.EvoVariableDeleteException
 import com.inspyresoftworks.ti84evo.protocol.EvoImagePayload
 import com.inspyresoftworks.ti84evo.protocol.EvoVariablePayload
+import com.inspyresoftworks.ti84evo.protocol.isPersistentBuiltInList
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
+import com.inspyresoftworks.ti84evo.project.EvoProjectPull
 import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
 import com.inspyresoftworks.ti84evo.service.EvoDeviceService
 import com.inspyresoftworks.ti84evo.settings.EvoApplicationSettings
 import java.awt.BorderLayout
 import java.awt.Dimension
-import java.awt.FlowLayout
+import java.awt.GridLayout
 import java.awt.Image
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import java.awt.image.BufferedImage
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import javax.imageio.ImageIO
 import javax.swing.ImageIcon
 import javax.swing.JButton
 import javax.swing.JFileChooser
+import javax.swing.JMenuItem
 import javax.swing.JPanel
 import javax.swing.JProgressBar
+import javax.swing.JPopupMenu
 import javax.swing.JSplitPane
 import javax.swing.table.DefaultTableModel
 import javax.swing.filechooser.FileNameExtensionFilter
@@ -46,19 +59,27 @@ import javax.swing.filechooser.FileNameExtensionFilter
  * Author: Taylor B. | Inspyre-Softworks.
  */
 class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) {
+    private data class DirectoryRefreshRequest(
+        val showSummary: Boolean,
+        val completedOperation: String? = null,
+    )
+
     private companion object {
         const val PLUGIN_ID = "com.inspyresoftworks.ti84evo"
+        val SCREENSHOT_TIMESTAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
     }
 
     private val service = project.getService(EvoDeviceService::class.java)
     private val applicationSettings = ApplicationManager.getApplication().getService(EvoApplicationSettings::class.java)
     private val installedPluginVersion = EvoBuildInfo.version
+    private var versionStatus = EvoVersionStatus.checking(installedPluginVersion)
+    private var aboutDialog: EvoAboutDialog? = null
     private val status = JBLabel("Not checked", AllIcons.General.Information, JBLabel.LEADING)
     private val version = JBLabel(
-        "v$installedPluginVersion",
+        versionStatus.footerText,
         JBLabel.TRAILING,
     ).apply {
-        toolTipText = "Installed TI-84 Evo plugin version"
+        toolTipText = versionStatus.tooltip
         foreground = com.intellij.ui.JBColor.GRAY
     }
     private val uploadProgress = JProgressBar().apply {
@@ -71,6 +92,29 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
     private val screen = JBLabel("No screenshot", JBLabel.CENTER).apply {
         preferredSize = Dimension(640, 480)
+    }
+    private var capturedScreenImage: BufferedImage? = null
+    private val saveScreenAsButton = JButton("Save As…", AllIcons.Actions.MenuSaveall).apply {
+        isEnabled = false
+        toolTipText = "Save the full-resolution calculator screenshot as a PNG"
+        addActionListener { saveScreenshotAs() }
+    }
+    private val saveScreenToProjectButton = JButton("Save to Project Dir", AllIcons.Nodes.Folder).apply {
+        isEnabled = false
+        toolTipText = "Save the full-resolution calculator screenshot in the project directory"
+        addActionListener { saveScreenshotToProject() }
+    }
+    private val saveScreenAsMenuItem = JMenuItem("Save As…", AllIcons.Actions.MenuSaveall).apply {
+        isEnabled = false
+        addActionListener { saveScreenshotAs() }
+    }
+    private val saveScreenToProjectMenuItem = JMenuItem("Save to Project Dir", AllIcons.Nodes.Folder).apply {
+        isEnabled = false
+        addActionListener { saveScreenshotToProject() }
+    }
+    private val screenPopupMenu = JPopupMenu().apply {
+        add(saveScreenAsMenuItem)
+        add(saveScreenToProjectMenuItem)
     }
     private val directoryModel = object : DefaultTableModel(
         arrayOf("Name", "Type", "Size", "Location"),
@@ -93,11 +137,18 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         columnModel.getColumn(3).preferredWidth = 80
     }
     private val directoryEntries = mutableListOf<EvoDirectoryEntry>()
+    private var directoryRefreshInProgress = false
+    private var queuedDirectoryRefresh: DirectoryRefreshRequest? = null
     private var deletionInProgress = false
     private val deleteSelectedButton = JButton("Delete selected", AllIcons.General.Remove).apply {
         isEnabled = false
         toolTipText = "Delete the selected calculator files after confirmation"
         addActionListener { deleteSelectedFiles() }
+    }
+    private val archiveSelectedButton = JButton("Save to Archive", AllIcons.Actions.Download).apply {
+        isEnabled = false
+        toolTipText = "Move the selected RAM variables into calculator Archive"
+        addActionListener { archiveSelectedFiles() }
     }
     private val viewSelectedButton = JButton("View / edit", AllIcons.Actions.Show).apply {
         isEnabled = false
@@ -109,32 +160,60 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         addActionListener { addVariable() }
     }
     private val screenPane = JBScrollPane(screen)
+    private val screenContent = JPanel(BorderLayout()).apply {
+        isOpaque = false
+        add(screenPane, BorderLayout.CENTER)
+        add(
+            JPanel(GridLayout(1, 2, 8, 0)).apply {
+                isOpaque = false
+                border = JBUI.Borders.emptyTop(4)
+                add(saveScreenAsButton)
+                add(saveScreenToProjectButton)
+            },
+            BorderLayout.SOUTH,
+        )
+    }
     private val directoryPane = JBScrollPane(directoryTable)
     private val directoryContent = JPanel(BorderLayout()).apply {
         isOpaque = false
         add(directoryPane, BorderLayout.CENTER)
         add(
-            JPanel(FlowLayout(FlowLayout.LEFT, 0, 4)).apply {
+            JPanel(GridLayout(2, 2, 8, 4)).apply {
                 isOpaque = false
                 add(viewSelectedButton)
-                add(javax.swing.Box.createHorizontalStrut(8))
                 add(addVariableButton)
-                add(javax.swing.Box.createHorizontalStrut(8))
+                add(archiveSelectedButton)
                 add(deleteSelectedButton)
             },
             BorderLayout.SOUTH,
         )
     }
     private val contentTabs = JBTabbedPane().apply {
-        addTab("Screen", screenPane)
+        addTab("Screen", screenContent)
         addTab("Calculator Files", directoryContent)
     }
 
     init {
         border = JBUI.Borders.empty(8)
+        screen.componentPopupMenu = screenPopupMenu
         directoryTable.selectionModel.addListSelectionListener {
             updateDeleteSelectedButtonState()
         }
+        contentTabs.addChangeListener {
+            if (contentTabs.selectedComponent === directoryContent) browseFiles()
+        }
+        contentTabs.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(event: MouseEvent) {
+                val tabIndex = contentTabs.indexAtLocation(event.x, event.y)
+                if (
+                    tabIndex >= 0 &&
+                    contentTabs.getComponentAt(tabIndex) === directoryContent &&
+                    contentTabs.selectedComponent === directoryContent
+                ) {
+                    browseFiles()
+                }
+            }
+        })
 
         val toolbar = EvoToolWindowToolbar.create(
             this,
@@ -148,6 +227,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                 configureProject = ::configureProject,
                 configureTransfers = ::configureTransfers,
                 pushProject = ::pushProject,
+                pullProject = ::pullProject,
                 showAbout = ::showAbout,
             ),
         )
@@ -183,7 +263,22 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             },
             BorderLayout.SOUTH,
         )
+        checkMarketplaceVersion()
         refresh()
+    }
+
+    private fun checkMarketplaceVersion() {
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val checked = EvoMarketplaceVersionChecker.check(installedPluginVersion, PLUGIN_ID)
+            onEdt {
+                if (!project.isDisposed) {
+                    versionStatus = checked
+                    version.text = checked.footerText
+                    version.toolTipText = checked.tooltip
+                    aboutDialog?.updateVersionStatus(checked)
+                }
+            }
+        }
     }
 
     private fun refresh() {
@@ -217,41 +312,112 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
 
     private fun browseFiles() {
-        showStatus("Reading calculator directory…", StatusKind.WORKING)
+        if (contentTabs.selectedComponent !== directoryContent) {
+            contentTabs.selectedComponent = directoryContent
+            return
+        }
+        requestDirectoryRefresh(DirectoryRefreshRequest(showSummary = true))
+    }
+
+    private fun refreshDirectoryAfterOperation(completedOperation: String) {
+        requestDirectoryRefresh(
+            DirectoryRefreshRequest(
+                showSummary = false,
+                completedOperation = completedOperation,
+            ),
+        )
+    }
+
+    private fun requestDirectoryRefresh(request: DirectoryRefreshRequest) {
+        if (directoryRefreshInProgress) {
+            val queued = queuedDirectoryRefresh
+            queuedDirectoryRefresh = when {
+                request.showSummary -> request
+                queued?.showSummary == true -> queued
+                else -> request
+            }
+            return
+        }
+
+        directoryRefreshInProgress = true
+        if (request.showSummary) {
+            directoryTable.emptyText.text = "Reading calculator directory…"
+            showStatus("Reading calculator directory…", StatusKind.WORKING)
+        }
         service.readDirectory { result ->
             onEdt {
-                result.onSuccess { entries ->
-                    directoryModel.rowCount = 0
-                    directoryEntries.clear()
-                    directoryEntries += entries.sortedBy { it.name.lowercase() }
-                    directoryEntries.forEach { entry ->
-                        directoryModel.addRow(
-                            arrayOf<Any>(
-                                entry.name,
-                                "${entry.typeName} (${entry.type})",
-                                entry.size,
-                                entry.location,
-                            ),
-                        )
+                try {
+                    result.onSuccess { entries ->
+                        replaceDirectoryEntries(entries)
+                        if (request.showSummary) {
+                            showDirectorySummary(entries)
+                        } else {
+                            val operation = request.completedOperation ?: "Operation complete"
+                            showStatus("$operation — directory refreshed", StatusKind.CONNECTED)
+                            output.append("\nDirectory refreshed: ${entries.size} calculator file(s).")
+                        }
+                    }.onFailure { error ->
+                        if (request.showSummary) {
+                            showFailure(error)
+                        } else {
+                            val operation = request.completedOperation ?: "Operation complete"
+                            showStatus("$operation — directory refresh failed", StatusKind.ERROR)
+                            output.append(
+                                "\nDirectory refresh failed: ${error.message ?: error.javaClass.simpleName}",
+                            )
+                        }
                     }
-                    contentTabs.selectedComponent = directoryContent
-                    showStatus(
-                        "Connected — ${entries.size} calculator files",
-                        StatusKind.CONNECTED,
-                    )
-                    val ramEntries = entries.filterNot { it.archived }
-                    val archiveEntries = entries.filter { it.archived }
-                    output.text = buildString {
-                        appendLine("Calculator directory")
-                        appendLine("Variables: ${entries.size}")
-                        appendLine("RAM: ${ramEntries.size} variables, ${ramEntries.sumOf { it.size }} bytes")
-                        appendLine("Archive: ${archiveEntries.size} variables, ${archiveEntries.sumOf { it.size }} bytes")
-                        if (entries.isEmpty()) append("No variables were returned by the directory resource.")
-                    }.trimEnd()
-                    updateDeleteSelectedButtonState()
-                }.onFailure { showFailure(it) }
+                } finally {
+                    directoryRefreshInProgress = false
+                    val queued = queuedDirectoryRefresh
+                    queuedDirectoryRefresh = null
+                    if (queued != null) requestDirectoryRefresh(queued)
+                }
             }
         }
+    }
+
+    private fun replaceDirectoryEntries(entries: List<EvoDirectoryEntry>) {
+        val selectedIdentities = selectedDirectoryEntries().mapTo(mutableSetOf(), ::entryIdentity)
+        directoryModel.rowCount = 0
+        directoryEntries.clear()
+        directoryEntries += entries.sortedBy { it.name.lowercase() }
+        directoryEntries.forEach { entry ->
+            directoryModel.addRow(
+                arrayOf<Any>(
+                    entry.name,
+                    "${entry.typeName} (${entry.type})",
+                    entry.size,
+                    entry.location,
+                ),
+            )
+        }
+        directoryTable.clearSelection()
+        directoryEntries.forEachIndexed { modelRow, entry ->
+            if (entryIdentity(entry) in selectedIdentities) {
+                val viewRow = directoryTable.convertRowIndexToView(modelRow)
+                if (viewRow >= 0) directoryTable.addRowSelectionInterval(viewRow, viewRow)
+            }
+        }
+        directoryTable.emptyText.text = if (entries.isEmpty()) {
+            "No calculator files were returned"
+        } else {
+            "Press Calculator Files to refresh the directory"
+        }
+        updateDeleteSelectedButtonState()
+    }
+
+    private fun showDirectorySummary(entries: List<EvoDirectoryEntry>) {
+        showStatus("Connected — ${entries.size} calculator files", StatusKind.CONNECTED)
+        val ramEntries = entries.filterNot { it.archived }
+        val archiveEntries = entries.filter { it.archived }
+        output.text = buildString {
+            appendLine("Calculator directory")
+            appendLine("Variables: ${entries.size}")
+            appendLine("RAM: ${ramEntries.size} variables, ${ramEntries.sumOf { it.size }} bytes")
+            appendLine("Archive: ${archiveEntries.size} variables, ${archiveEntries.sumOf { it.size }} bytes")
+            if (entries.isEmpty()) append("No variables were returned by the directory resource.")
+        }.trimEnd()
     }
 
     private fun captureScreen() {
@@ -264,6 +430,8 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         StatusKind.CONNECTED,
                     )
                     val image = EvoImage.toBufferedImage(capture)
+                    capturedScreenImage = image
+                    updateScreenshotSaveActions()
                     val scale = minOf(2.0, 640.0 / image.width, 480.0 / image.height)
                     val scaled = image.getScaledInstance(
                         (image.width * scale).toInt(),
@@ -272,20 +440,84 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                     )
                     screen.text = null
                     screen.icon = ImageIcon(scaled)
-                    contentTabs.selectedComponent = screenPane
+                    contentTabs.selectedComponent = screenContent
                     output.text = capture.metadata.entries.joinToString("\n") { (key, value) -> "$key: ${formatValue(value)}" }
                 }.onFailure { showFailure(it) }
             }
         }
     }
 
+    private fun updateScreenshotSaveActions() {
+        val enabled = capturedScreenImage != null
+        saveScreenAsButton.isEnabled = enabled
+        saveScreenToProjectButton.isEnabled = enabled
+        saveScreenAsMenuItem.isEnabled = enabled
+        saveScreenToProjectMenuItem.isEnabled = enabled
+    }
+
+    private fun saveScreenshotAs() {
+        if (capturedScreenImage == null) return
+        val initialDirectory = project.basePath?.let(::File)
+        val chooser = JFileChooser(initialDirectory).apply {
+            dialogTitle = "Save TI-84 Evo Screenshot"
+            fileSelectionMode = JFileChooser.FILES_ONLY
+            fileFilter = FileNameExtensionFilter("PNG image (*.png)", "png")
+            selectedFile = (initialDirectory?.toPath() ?: Path.of(System.getProperty("user.home")))
+                .resolve(screenshotFileName())
+                .toFile()
+        }
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return
+        val selected = chooser.selectedFile.toPath().toAbsolutePath().normalize()
+        val path = if (selected.fileName.toString().endsWith(".png", ignoreCase = true)) {
+            selected
+        } else {
+            selected.resolveSibling("${selected.fileName}.png")
+        }
+        if (Files.exists(path)) {
+            val overwrite = Messages.showYesNoDialog(
+                project,
+                "Replace the existing file?\n\n$path",
+                "Save TI-84 Evo Screenshot",
+                Messages.getWarningIcon(),
+            )
+            if (overwrite != Messages.YES) return
+        }
+        writeScreenshot(path)
+    }
+
+    private fun saveScreenshotToProject() {
+        val root = projectRoot() ?: return
+        val fileName = screenshotFileName()
+        val stem = fileName.removeSuffix(".png")
+        var path = root.resolve(fileName)
+        var suffix = 2
+        while (Files.exists(path)) {
+            path = root.resolve("$stem-$suffix.png")
+            suffix++
+        }
+        writeScreenshot(path)
+    }
+
+    private fun writeScreenshot(path: Path) {
+        val image = capturedScreenImage ?: return
+        runCatching {
+            path.parent?.let(Files::createDirectories)
+            if (!ImageIO.write(image, "png", path.toFile())) {
+                throw IllegalStateException("No PNG image writer is available")
+            }
+            LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path)
+        }.onSuccess {
+            showStatus("Saved screenshot: ${path.fileName}", StatusKind.READY)
+            output.append("\nScreenshot saved to $path")
+        }.onFailure(::showFailure)
+    }
+
+    private fun screenshotFileName(): String =
+        "ti84-evo-screen-${LocalDateTime.now().format(SCREENSHOT_TIMESTAMP)}.png"
+
     private fun deleteSelectedFiles() {
         if (deletionInProgress) return
-        val selectedEntries = directoryTable.selectedRows
-            .map(directoryTable::convertRowIndexToModel)
-            .distinct()
-            .sorted()
-            .map(directoryEntries::get)
+        val selectedEntries = selectedDirectoryEntries()
         if (selectedEntries.isEmpty()) return
 
         val answer = Messages.showYesNoDialog(
@@ -293,14 +525,20 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             buildString {
                 appendLine(
                     if (selectedEntries.size == 1) {
-                        "Delete ${selectedEntries.single().name} from the calculator?"
+                        val entry = selectedEntries.single()
+                        if (isPersistentBuiltInList(entry)) {
+                            "Clear ${entry.name} and restore the default L1-L6 List Editor columns?"
+                        } else {
+                            "Delete ${entry.name} from the calculator?"
+                        }
                     } else {
-                        "Delete ${selectedEntries.size} selected files from the calculator?"
+                        "Remove or clear ${selectedEntries.size} selected calculator files?"
                     },
                 )
                 appendLine()
                 selectedEntries.take(10).forEach { entry ->
-                    appendLine("• ${entry.name} (${entry.typeName}, ${entry.location})")
+                    val action = if (isPersistentBuiltInList(entry)) "clear values" else "delete"
+                    appendLine("• ${entry.name}: $action (${entry.typeName}, ${entry.location})")
                 }
                 if (selectedEntries.size > 10) {
                     appendLine("• …and ${selectedEntries.size - 10} more")
@@ -316,19 +554,45 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         deletionInProgress = true
         updateDeleteSelectedButtonState()
         showStatus("Deleting ${selectedEntries.size} calculator file(s)…", StatusKind.WORKING)
+        uploadProgress.minimum = 0
+        uploadProgress.maximum = selectedEntries.size
+        uploadProgress.value = 0
+        uploadProgress.string = "Preparing deletion…"
+        uploadProgress.isVisible = true
         output.text = "Deleting ${selectedEntries.joinToString { it.name }}…"
-        service.deleteVariables(selectedEntries) { result ->
+        service.deleteVariables(
+            selectedEntries,
+            onProgress = { entry, completed, total ->
+                onEdt {
+                    uploadProgress.value = completed
+                    val action = if (isPersistentBuiltInList(entry)) "Cleared" else "Deleted"
+                    uploadProgress.string = "$action $completed/$total: ${entry.name}"
+                }
+            },
+        ) { result ->
             onEdt {
                 try {
-                    result.onSuccess { deletedEntries ->
+                    result.onSuccess { completedEntries ->
+                        val deletedEntries = completedEntries.filterNot(::isPersistentBuiltInList)
+                        val clearedEntries = completedEntries.filter(::isPersistentBuiltInList)
                         removeDirectoryEntries(deletedEntries)
-                        showStatus("Deleted ${deletedEntries.size} calculator file(s)", StatusKind.CONNECTED)
+                        showStatus("Completed ${completedEntries.size} calculator file operation(s)", StatusKind.CONNECTED)
                         output.text = buildString {
-                            appendLine("Delete successful")
-                            deletedEntries.forEach {
-                                appendLine("• ${it.name} (${it.typeName}, ${it.size} bytes, ${it.location})")
+                            appendLine("Calculator file operation successful")
+                            completedEntries.forEach {
+                                val action = if (isPersistentBuiltInList(it)) "Cleared" else "Deleted"
+                                appendLine("• $action ${it.name} (${it.typeName}, ${it.size} bytes, ${it.location})")
+                            }
+                            if (clearedEntries.isNotEmpty()) {
+                                appendLine("List Editor: restored default L1-L6 columns")
                             }
                         }
+                        val summary = buildString {
+                            if (deletedEntries.isNotEmpty()) append("Deleted ${deletedEntries.size}")
+                            if (deletedEntries.isNotEmpty() && clearedEntries.isNotEmpty()) append(", ")
+                            if (clearedEntries.isNotEmpty()) append("cleared ${clearedEntries.size}")
+                        }
+                        refreshDirectoryAfterOperation(summary)
                     }.onFailure { error ->
                         if (error is EvoVariableDeleteException) {
                             removeDirectoryEntries(error.deletedEntries)
@@ -336,9 +600,94 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         showFailure(error)
                     }
                 } finally {
+                    uploadProgress.isVisible = false
                     deletionInProgress = false
                     updateDeleteSelectedButtonState()
                 }
+            }
+        }
+    }
+
+    private fun archiveSelectedFiles() {
+        if (deletionInProgress) return
+        val selectedEntries = selectedDirectoryEntries().filterNot { it.archived }
+        if (selectedEntries.isEmpty()) return
+
+        val answer = Messages.showYesNoDialog(
+            project,
+            buildString {
+                appendLine(
+                    if (selectedEntries.size == 1) {
+                        "Save ${selectedEntries.single().name} to calculator Archive?"
+                    } else {
+                        "Save ${selectedEntries.size} selected files to calculator Archive?"
+                    },
+                )
+                appendLine()
+                selectedEntries.take(10).forEach { entry -> appendLine("• ${entry.name} (${entry.typeName})") }
+                if (selectedEntries.size > 10) appendLine("• …and ${selectedEntries.size - 10} more")
+            },
+            "Save Calculator Files to Archive",
+            Messages.getQuestionIcon(),
+        )
+        if (answer != Messages.YES) return
+
+        deletionInProgress = true
+        updateDeleteSelectedButtonState()
+        showStatus("Archiving ${selectedEntries.size} calculator file(s)…", StatusKind.WORKING)
+        uploadProgress.minimum = 0
+        uploadProgress.maximum = selectedEntries.size
+        uploadProgress.value = 0
+        uploadProgress.string = "Preparing Archive transfer…"
+        uploadProgress.isVisible = true
+        service.archiveVariables(
+            selectedEntries,
+            onProgress = { archive, completed, total ->
+                onEdt {
+                    uploadProgress.value = completed
+                    uploadProgress.string = "Archived $completed/$total: ${archive.entry.name}"
+                }
+            },
+        ) { result ->
+            onEdt {
+                try {
+                    result.onSuccess { archived ->
+                        markDirectoryEntriesArchived(archived.map { it.entry })
+                        showStatus("Saved ${archived.size} file(s) to Archive", StatusKind.CONNECTED)
+                        output.text = buildString {
+                            appendLine("Archive transfer successful")
+                            archived.forEach { result ->
+                                appendLine("• ${result.entry.name}: ${result.payloadBytes} bytes, ${result.packets} packets")
+                            }
+                        }
+                        refreshDirectoryAfterOperation("Saved ${archived.size} file(s) to Archive")
+                    }.onFailure { error ->
+                        if (error is EvoVariableArchiveException) {
+                            markDirectoryEntriesArchived(error.archivedEntries)
+                        }
+                        showFailure(error)
+                    }
+                } finally {
+                    uploadProgress.isVisible = false
+                    deletionInProgress = false
+                    updateDeleteSelectedButtonState()
+                }
+            }
+        }
+    }
+
+    private fun selectedDirectoryEntries(): List<EvoDirectoryEntry> = directoryTable.selectedRows
+        .map(directoryTable::convertRowIndexToModel)
+        .distinct()
+        .sorted()
+        .mapNotNull(directoryEntries::getOrNull)
+
+    private fun markDirectoryEntriesArchived(entries: List<EvoDirectoryEntry>) {
+        val archivedByIdentity = entries.associateBy(::entryIdentity)
+        directoryEntries.indices.forEach { modelRow ->
+            archivedByIdentity[entryIdentity(directoryEntries[modelRow])]?.let { archived ->
+                directoryEntries[modelRow] = archived
+                directoryModel.setValueAt(archived.location, modelRow, 3)
             }
         }
     }
@@ -375,6 +724,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                 directoryEntries.isNotEmpty() &&
                 directoryTable.selectedRowCount > 0
         viewSelectedButton.isEnabled = !deletionInProgress && directoryTable.selectedRowCount == 1
+        archiveSelectedButton.isEnabled = !deletionInProgress && selectedDirectoryEntries().any { !it.archived }
     }
 
     private fun viewSelectedVariable() {
@@ -428,11 +778,14 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         appendLine("Variable: ${upload.description}")
                         appendLine("Payload: ${upload.payloadBytes} bytes")
                         appendLine("Kermit packets: ${upload.packets}")
-                        if (upload.preservedListEditor) {
+                        if (upload.restoredBuiltInListEditor) {
+                            appendLine("List Editor: restored default L1-L6 columns")
+                        } else if (upload.preservedListEditor) {
                             appendLine("List Editor: existing column registration preserved")
                         }
                         append("Target: ${if (upload.archived) "Archive" else "RAM"}")
                     }
+                    refreshDirectoryAfterOperation("Sent ${upload.description}")
                 }.onFailure { showFailure(it) }
             }
         }
@@ -467,6 +820,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                     result.onSuccess { upload ->
                         showStatus("Uploaded ${upload.description}", StatusKind.CONNECTED)
                         output.text = "Uploaded ${upload.description}\n${upload.payloadBytes} bytes, ${upload.packets} packets\nTarget: ${if (archived) "Archive" else "RAM"}"
+                        refreshDirectoryAfterOperation("Uploaded ${upload.description}")
                     }.onFailure { showFailure(it) }
                 }
             }
@@ -501,6 +855,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         appendLine("Kermit packets: ${upload.transfer.packets}")
                         append("Target: ${if (archived) "Archive" else "RAM"}")
                     }
+                    refreshDirectoryAfterOperation("Uploaded image ${upload.image.name}")
                 }.onFailure { showFailure(it) }
             }
         }
@@ -571,6 +926,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         appendLine("Kermit packets: ${upload.packets}")
                         appendLine("Target: ${if (upload.archived) "Archive" else "RAM"}")
                     }
+                    refreshDirectoryAfterOperation("Uploaded ${upload.programName}")
                 }.onFailure { showFailure(it) }
             }
         }
@@ -631,22 +987,42 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
         }
         val configured = resolvedProject.programs
 
+        showStatus("Checking calculator project state…", StatusKind.WORKING)
+        output.text = "Comparing configured Python files with the calculator directory…"
+        service.readDirectory { result ->
+            onEdt {
+                result.onSuccess { calculatorDirectory ->
+                    replaceDirectoryEntries(calculatorDirectory)
+                    pushResolvedProject(root, resolvedProject, configured, calculatorDirectory)
+                }.onFailure { showFailure(it) }
+            }
+        }
+    }
+
+    private fun pushResolvedProject(
+        root: Path,
+        resolvedProject: ResolvedProject,
+        configured: List<ResolvedProjectProgram>,
+        calculatorDirectory: List<EvoDirectoryEntry>,
+    ) {
         var pending = if (resolvedProject.alwaysPushAll) {
             configured
         } else {
             val pendingPairs = EvoProjectUploadState.pending(
                 root,
                 configured.map { it.entry to it.source },
+                calculatorDirectory,
             )
             val pendingPaths = pendingPairs.mapTo(mutableSetOf()) { it.first.sourcePath }
             configured.filter { it.entry.sourcePath in pendingPaths }
         }
+        var pushAnyway = false
         if (pending.isEmpty()) {
             showStatus("Project is up to date", StatusKind.READY)
-            output.text = "No changed project files to upload."
+            output.text = "Every configured source is unchanged and present in the requested calculator location."
             val choice = Messages.showDialog(
                 project,
-                "All configured files are already up to date.",
+                "All configured files are unchanged and present on the calculator.",
                 "TI-84 Evo Project Is Up to Date",
                 arrayOf("Push Anyway", "Cancel"),
                 1,
@@ -654,12 +1030,13 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             )
             if (choice != 0) return
             pending = configured
+            pushAnyway = true
         }
 
         val uploadMode = when {
             resolvedProject.alwaysPushAll -> "always rebuild"
-            pending.size == configured.size -> "push anyway"
-            else -> "incremental"
+            pushAnyway -> "push anyway"
+            else -> "incremental synchronization"
         }
         showStatus("Pushing ${pending.size} project files ($uploadMode)…", StatusKind.WORKING)
         uploadProgress.minimum = 0
@@ -671,7 +1048,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             appendLine("Uploading project files in one calculator session ($uploadMode):")
             pending.forEach { appendLine("• ${it.entry.programName} → ${if (it.entry.archived) "Archive" else "RAM"}") }
             val skipped = configured.size - pending.size
-            if (skipped > 0) appendLine("Skipping $skipped unchanged file(s).")
+            if (skipped > 0) appendLine("Skipping $skipped unchanged file(s) already present on the calculator.")
         }
 
         service.uploadPythonProject(
@@ -707,10 +1084,115 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                         appendLine("Total Kermit packets: ${upload.packets}")
                         append("Unchanged files skipped: ${configured.size - pending.size}")
                     }
+                    refreshDirectoryAfterOperation("Pushed ${upload.uploads.size} project files")
                 }.onFailure { showFailure(it) }
             }
         }
     }
+
+    private fun pullProject() {
+        val root = projectRoot() ?: return
+        showStatus("Pulling Python project from calculator…", StatusKind.WORKING)
+        uploadProgress.minimum = 0
+        uploadProgress.maximum = 1
+        uploadProgress.value = 0
+        uploadProgress.string = "Reading calculator directory…"
+        uploadProgress.isVisible = true
+        output.text = "Downloading every Python program from the calculator…"
+
+        service.pullPythonProject(
+            onProgress = { program, completed, total ->
+                onEdt {
+                    uploadProgress.maximum = total
+                    uploadProgress.value = completed
+                    uploadProgress.string = "Downloaded $completed/$total: ${program.programName}"
+                }
+            },
+        ) { result ->
+            onEdt {
+                uploadProgress.isVisible = false
+                result.onSuccess { pulled ->
+                    val plan = runCatching {
+                        val existing = readProjectConfigurationIfPresent(root)
+                        EvoProjectPull.plan(root, pulled.programs, existing) { path -> currentProjectSource(path) }
+                    }.getOrElse {
+                        showFailure(it)
+                        return@onSuccess
+                    }
+                    val answer = Messages.showDialog(
+                        project,
+                        buildString {
+                            appendLine("Pull ${plan.targets.size} Python program(s) into this project?")
+                            appendLine()
+                            plan.targets.take(12).forEach { target ->
+                                appendLine(
+                                    "• ${target.entry.programName} → ${target.entry.sourcePath} " +
+                                        "(${if (target.entry.archived) "Archive" else "RAM"})",
+                                )
+                            }
+                            if (plan.targets.size > 12) appendLine("• …and ${plan.targets.size - 12} more")
+                            if (plan.conflicts.isNotEmpty()) {
+                                appendLine()
+                                appendLine(
+                                    "This will overwrite local changes in: " +
+                                        plan.conflicts.joinToString { it.entry.sourcePath },
+                                )
+                            }
+                            appendLine()
+                            append("The project manifest will be updated to match the calculator.")
+                        },
+                        "Pull Python Project from TI-84 Evo",
+                        arrayOf(if (plan.conflicts.isEmpty()) "Save Project" else "Overwrite and Pull", "Cancel"),
+                        1,
+                        if (plan.conflicts.isEmpty()) Messages.getQuestionIcon() else Messages.getWarningIcon(),
+                    )
+                    if (answer != 0) {
+                        showStatus("Project pull cancelled", StatusKind.READY)
+                        return@onSuccess
+                    }
+
+                    FileDocumentManager.getInstance().saveAllDocuments()
+                    ApplicationManager.getApplication().executeOnPooledThread {
+                        runCatching {
+                            EvoProjectPull.write(plan, overwrite = plan.conflicts.isNotEmpty())
+                            val refreshed = plan.targets.map { it.path } + root.resolve(EvoProjectManifest.FILE_NAME)
+                            refreshed.forEach(LocalFileSystem.getInstance()::refreshAndFindFileByNioFile)
+                        }.onSuccess {
+                            onEdt {
+                                showStatus("Pulled ${plan.targets.size} Python project files", StatusKind.CONNECTED)
+                                output.text = buildString {
+                                    appendLine("Project pull successful")
+                                    plan.targets.forEach { target ->
+                                        appendLine("• ${target.entry.programName} → ${target.entry.sourcePath}")
+                                    }
+                                    appendLine("Total source: ${pulled.sourceBytes} bytes")
+                                    appendLine("Total transfer payload: ${pulled.payloadBytes} bytes")
+                                    append("Saved ${EvoProjectManifest.FILE_NAME}; the next normal push will treat these files as synchronized.")
+                                }
+                            }
+                        }.onFailure { error ->
+                            onEdt { showFailure(error) }
+                        }
+                    }
+                }.onFailure(::showFailure)
+            }
+        }
+    }
+
+    private fun readProjectConfigurationIfPresent(root: Path): EvoProjectManifest.Configuration? =
+        ApplicationManager.getApplication().runReadAction<EvoProjectManifest.Configuration?> {
+            val manifestPath = root.resolve(EvoProjectManifest.FILE_NAME)
+            val manifestFile = LocalFileSystem.getInstance().findFileByNioFile(manifestPath) ?: return@runReadAction null
+            val text = FileDocumentManager.getInstance().getDocument(manifestFile)?.text
+                ?: String(manifestFile.contentsToByteArray(), StandardCharsets.UTF_8)
+            EvoProjectManifest.parseConfiguration(text)
+        }
+
+    private fun currentProjectSource(path: Path): String? =
+        LocalFileSystem.getInstance().findFileByNioFile(path)?.let { file ->
+            if (file.isDirectory) null else FileDocumentManager.getInstance().getDocument(file)?.text
+                ?: String(file.contentsToByteArray(), StandardCharsets.UTF_8)
+        }
 
     private data class ResolvedProjectProgram(
         val entry: EvoProjectManifest.Entry,
@@ -759,7 +1241,13 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
 
     internal fun showAbout() {
-        EvoAboutDialog(project, installedPluginVersion, PLUGIN_ID).show()
+        val dialog = EvoAboutDialog(project, versionStatus, PLUGIN_ID)
+        aboutDialog = dialog
+        try {
+            dialog.show()
+        } finally {
+            if (aboutDialog === dialog) aboutDialog = null
+        }
     }
 
     private fun showFailure(error: Throwable) {
@@ -782,7 +1270,33 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
                     if (error.deletedEntries.isNotEmpty()) {
                         appendLine("Already deleted: ${error.deletedEntries.joinToString { it.name }}")
                     }
+                    if (error.clearedEntries.isNotEmpty()) {
+                        appendLine("Already cleared: ${error.clearedEntries.joinToString { it.name }}")
+                    }
+                    val action = if (isPersistentBuiltInList(error.failedEntry)) "clear" else "delete"
+                    appendLine("Failed to $action: ${error.failedEntry.name}")
+                    appendLine()
+                    append(error.cause?.stackTraceToString() ?: error.stackTraceToString())
+                }
+            }
+            is EvoVariableArchiveException -> {
+                buildString {
+                    appendLine(error.message)
+                    if (error.archivedEntries.isNotEmpty()) {
+                        appendLine("Already archived: ${error.archivedEntries.joinToString { it.name }}")
+                    }
                     appendLine("Failed variable: ${error.failedEntry.name}")
+                    appendLine()
+                    append(error.cause?.stackTraceToString() ?: error.stackTraceToString())
+                }
+            }
+            is EvoPythonProjectPuller.ProjectPullException -> {
+                buildString {
+                    appendLine(error.message)
+                    if (error.completedPrograms.isNotEmpty()) {
+                        appendLine("Already downloaded: ${error.completedPrograms.joinToString { it.programName }}")
+                    }
+                    appendLine("Failed program: ${error.failedEntry.name}")
                     appendLine()
                     append(error.cause?.stackTraceToString() ?: error.stackTraceToString())
                 }

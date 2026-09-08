@@ -1,5 +1,6 @@
 package com.inspyresoftworks.ti84evo.project
 
+import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -28,15 +29,26 @@ object EvoProjectUploadState {
     fun pending(
         projectRoot: Path,
         programs: List<Pair<EvoProjectManifest.Entry, String>>,
+        calculatorDirectory: Collection<EvoDirectoryEntry>? = null,
     ): List<Pair<EvoProjectManifest.Entry, String>> {
         val state = load(projectRoot)
         return programs.filter { (entry, source) ->
-            state.getProperty(entry.sourcePath) != fingerprint(entry, source)
+            state.getProperty(entry.sourcePath) != fingerprint(entry, source) ||
+                calculatorDirectory?.none { calculatorEntry ->
+                    calculatorEntry.type == PYTHON_TYPE &&
+                        calculatorEntry.name.equals(entry.programName, ignoreCase = true) &&
+                        calculatorEntry.archived == entry.archived
+                } == true
         }
     }
 
     @Synchronized
     fun markUploaded(projectRoot: Path, entry: EvoProjectManifest.Entry, source: String) {
+        markSynchronized(projectRoot, entry, source)
+    }
+
+    @Synchronized
+    fun markSynchronized(projectRoot: Path, entry: EvoProjectManifest.Entry, source: String) {
         val state = load(projectRoot)
         state.setProperty(entry.sourcePath, fingerprint(entry, source))
         val path = statePath(projectRoot)
@@ -60,4 +72,6 @@ object EvoProjectUploadState {
     }
 
     private fun statePath(projectRoot: Path): Path = projectRoot.resolve(DIRECTORY).resolve(FILE_NAME)
+
+    private const val PYTHON_TYPE = 15
 }

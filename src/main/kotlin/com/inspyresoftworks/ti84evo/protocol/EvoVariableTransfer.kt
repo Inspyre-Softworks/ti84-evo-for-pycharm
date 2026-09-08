@@ -10,6 +10,13 @@ class EvoVariableTransfer(transport: EvoTransport) {
         val packets: Int,
         val archived: Boolean,
         val preservedListEditor: Boolean = false,
+        val restoredBuiltInListEditor: Boolean = false,
+    )
+
+    data class ArchiveResult(
+        val entry: com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry,
+        val payloadBytes: Int,
+        val packets: Int,
     )
 
     private val transport = transport
@@ -17,15 +24,29 @@ class EvoVariableTransfer(transport: EvoTransport) {
     private val link = EvoLink(transport)
 
     fun uploadEditable(value: EvoVariablePayload.EditableValue): Result {
-        if (value.kind == EvoVariablePayload.Kind.LIST) {
+        val result = if (value.kind == EvoVariablePayload.Kind.LIST) {
             val directory = link.getDirectory()
             val existing = directory.singleOrNull {
                 it.type == EvoVariablePayload.Kind.LIST.typeId && it.name.equals(value.name, ignoreCase = true)
             }
-            if (existing != null) return replaceListNatively(value, existing, directory.map { it.name })
-            reconnect()
+            if (existing != null) {
+                replaceListNatively(value, existing, directory.map { it.name })
+            } else {
+                reconnect()
+                uploadEditableDirect(value)
+            }
+        } else {
+            uploadEditableDirect(value)
         }
-        return uploadEditableDirect(value)
+        if (value.kind == EvoVariablePayload.Kind.LIST && isPersistentBuiltInListName(value.name)) {
+            reconnect()
+            val editorPackets = EvoListEditor(transport).restoreDefaultColumns()
+            return result.copy(
+                packets = result.packets + editorPackets,
+                restoredBuiltInListEditor = true,
+            )
+        }
+        return result
     }
 
     private fun uploadEditableDirect(value: EvoVariablePayload.EditableValue): Result {
@@ -65,7 +86,6 @@ class EvoVariableTransfer(transport: EvoTransport) {
             // Remove only the unregistered scratch list before replacing the target. The
             // native type-1 replacement keeps the calculator's List Editor column binding.
             deleteTemporaryList(temporaryEntry)
-            awaitListDeletion(temporaryEntry)
             temporaryEntry = null
             temporaryRemoved = true
             reconnect()
@@ -103,6 +123,48 @@ class EvoVariableTransfer(transport: EvoTransport) {
         return Result(fileName, bytes.size, packets, archived)
     }
 
+    /** Re-uploads existing RAM variables to Archive and verifies their new location. */
+    fun archiveVariables(
+        entries: List<com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry>,
+        onProgress: (ArchiveResult, Int, Int) -> Unit = { _, _, _ -> },
+    ): List<ArchiveResult> {
+        val candidates = entries.filterNot { it.archived }
+        val completed = mutableListOf<ArchiveResult>()
+        for (entry in candidates) {
+            val result = try {
+                val raw = link.getVariable(entry)
+                val file = EvoVariableFile.addChecksum(raw)
+                reconnect()
+                var packets = 0
+                var uploadFailure: RuntimeException? = null
+                try {
+                    packets = sender.uploadPayload(archiveTransferUrl(), file)
+                } catch (error: RuntimeException) {
+                    // The calculator can commit the archive transfer even when the final ACK is lost.
+                    // Verify the resulting directory state before reporting this entry as failed.
+                    uploadFailure = error
+                }
+                reconnect()
+                val archivedEntry = link.getDirectory().singleOrNull {
+                    it.type == entry.type &&
+                        it.archived &&
+                        it.tokenName.contentEquals(entry.tokenName)
+                } ?: throw EvoProtocolException(
+                    "calculator did not report ${entry.name} in Archive after the transfer",
+                    uploadFailure,
+                )
+                ArchiveResult(archivedEntry, file.size, packets)
+            } catch (error: Throwable) {
+                throw EvoVariableArchiveException(entry, completed.map { it.entry }, error)
+            }
+            completed += result
+            runCatching { onProgress(result, completed.size, candidates.size) }
+        }
+        return completed
+    }
+
+    internal fun archiveTransferUrl(): String = "hh01/xfr/var?memtarget=1&policy=1"
+
     internal fun temporaryListName(namesInUse: Collection<String>): String {
         val occupied = namesInUse.mapTo(mutableSetOf()) { it.uppercase() }
         return (0..9999)
@@ -112,34 +174,8 @@ class EvoVariableTransfer(transport: EvoTransport) {
             ?: throw EvoProtocolException("no temporary calculator list name is available")
     }
 
-    private fun awaitListDeletion(entry: com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry) {
-        repeat(3) { attempt ->
-            reconnect()
-            val remains = link.getDirectory().any {
-                it.type == entry.type && it.name.equals(entry.name, ignoreCase = true)
-            }
-            if (!remains) return
-            if (attempt < 2) deleteTemporaryList(entry)
-        }
-        throw EvoProtocolException("temporary list ${entry.name} could not be removed")
-    }
-
     private fun deleteTemporaryList(entry: com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry) {
-        val url = "hh01/del/${buildVariableResourceName(entry)}"
-        reconnect()
-        try {
-            sender.uploadPayload(url, byteArrayOf(0))
-        } catch (error: EvoTimeoutException) {
-            // The calculator can apply a delete without returning the final Kermit byte.
-            // Reopen the serial session and check before retrying the idempotent request.
-            reconnect()
-            val remains = link.getDirectory().any {
-                it.type == entry.type && it.name.equals(entry.name, ignoreCase = true)
-            }
-            if (!remains) return
-            reconnect()
-            sender.uploadPayload(url, byteArrayOf(0))
-        }
+        link.deleteVariables(listOf(entry))
     }
 
     private fun reconnect() {
@@ -147,3 +183,8 @@ class EvoVariableTransfer(transport: EvoTransport) {
         transport.open()
     }
 }
+
+internal fun isPersistentBuiltInListName(name: String): Boolean =
+    name.uppercase() in PERSISTENT_BUILT_IN_LIST_NAMES
+
+private val PERSISTENT_BUILT_IN_LIST_NAMES = (1..6).mapTo(mutableSetOf()) { "L$it" }

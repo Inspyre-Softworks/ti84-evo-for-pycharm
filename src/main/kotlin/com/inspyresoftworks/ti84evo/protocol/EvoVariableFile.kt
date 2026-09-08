@@ -52,6 +52,24 @@ object EvoVariableFile {
         return encodeCbor(renamed)
     }
 
+    /** Rebuilds a native list envelope as an empty list while preserving its identity metadata. */
+    fun clearList(raw: ByteArray): ByteArray {
+        val decoded = CborReader(raw).readComplete() as? Map<*, *>
+            ?: throw EvoProtocolException("variable transfer did not decode to a CBOR map")
+        val metadata = decoded["metaData"] as? Map<*, *>
+            ?: throw EvoProtocolException("variable transfer is missing its metadata map")
+        val type = (metadata["type"] as? Number)?.toInt()
+        if (type != LIST_TYPE) throw EvoProtocolException("expected native list type $LIST_TYPE, got $type")
+
+        val cleared = LinkedHashMap<Any?, Any?>(decoded).apply {
+            this["len"] = 0L
+            remove("arraylen")
+            remove("size")
+            remove("data")
+        }
+        return encodeCbor(cleared)
+    }
+
     private fun encodeCbor(value: Any?): ByteArray = ByteArrayOutputStream().apply {
         when (value) {
             null -> write(0xF6)
@@ -118,4 +136,6 @@ object EvoVariableFile {
             value.toByte(),
         )
     }
+
+    private const val LIST_TYPE = 1
 }

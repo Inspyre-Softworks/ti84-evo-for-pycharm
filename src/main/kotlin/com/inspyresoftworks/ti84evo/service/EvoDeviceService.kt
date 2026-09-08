@@ -6,6 +6,7 @@ import com.inspyresoftworks.ti84evo.model.EvoScreenCapture
 import com.inspyresoftworks.ti84evo.protocol.EvoImagePayload
 import com.inspyresoftworks.ti84evo.protocol.EvoLink
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
+import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectPuller
 import com.inspyresoftworks.ti84evo.protocol.EvoVariablePayload
 import com.inspyresoftworks.ti84evo.protocol.EvoVariableTransfer
 import com.inspyresoftworks.ti84evo.settings.EvoApplicationSettings
@@ -61,9 +62,10 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
 
     fun deleteVariables(
         entries: List<EvoDirectoryEntry>,
+        onProgress: (EvoDirectoryEntry, Int, Int) -> Unit = { _, _, _ -> },
         callback: (Result<List<EvoDirectoryEntry>>) -> Unit,
     ) {
-        runLinkOperation({ it.deleteVariables(entries) }, callback)
+        runLinkOperation({ it.deleteVariables(entries, onProgress) }, callback)
     }
 
     fun uploadPython(
@@ -111,6 +113,29 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
             callback(result)
         }
     }
+
+    fun pullPythonProject(
+        onProgress: (EvoPythonProjectPuller.Program, Int, Int) -> Unit = { _, _, _ -> },
+        callback: (Result<EvoPythonProjectPuller.Result>) -> Unit,
+    ) {
+        coroutineScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    EvoSerialTransport.auto().use { transport ->
+                        transport.open()
+                        EvoPythonProjectPuller(transport).pull(onProgress)
+                    }
+                }
+            }
+            callback(result)
+        }
+    }
+
+    fun archiveVariables(
+        entries: List<EvoDirectoryEntry>,
+        onProgress: (EvoVariableTransfer.ArchiveResult, Int, Int) -> Unit = { _, _, _ -> },
+        callback: (Result<List<EvoVariableTransfer.ArchiveResult>>) -> Unit,
+    ) = runTransferOperation({ EvoVariableTransfer(it).archiveVariables(entries, onProgress) }, callback)
 
     fun uploadEditableVariable(
         value: EvoVariablePayload.EditableValue,

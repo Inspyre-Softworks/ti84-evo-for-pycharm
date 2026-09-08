@@ -6,6 +6,6 @@ import kotlin.test.assertEquals
 class EvoBuildInfoTest {
     @Test
     fun packagedVersionMatchesRelease() {
-        assertEquals("0.3.0", EvoBuildInfo.version)
+        assertEquals("0.3.1", EvoBuildInfo.version)
     }
 }

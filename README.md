@@ -1,5 +1,10 @@
 # TI-84 Evo for PyCharm
 
+[![Documentation Status](https://readthedocs.org/projects/ti84-evo-for-pycharm/badge/?version=latest)](https://ti84-evo-for-pycharm.readthedocs.io/en/latest/?badge=latest)
+[![Build](https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm/actions/workflows/ci.yml/badge.svg)](https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm/actions/workflows/ci.yml)
+[![Sourcery](https://img.shields.io/badge/Sourcery-enabled-brightgreen)](https://sourcery.ai)
+[![JetBrains Marketplace](https://img.shields.io/jetbrains/plugin/v/33854?label=JetBrains%20Marketplace)](https://plugins.jetbrains.com/plugin/33854-ti-84-evo)
+
 The project version is defined once in [`VERSION`](VERSION). Gradle uses it for
 plugin packaging and generated plugin metadata; the documentation reads the
 same file.
@@ -32,14 +37,16 @@ are on GitHub.
 
 - Detects the TI-84 Evo by USB VID `0451` / PID `E018`.
 - Opens the Evo CDC port directly from the JVM with jSerialComm.
-- Implements the solved Evo short/extended frame codec, checksum, D-frame escaping, printable sequence numbers, and the confirmed `S → F → A → D → Z → B` transaction ladder.
+- Implements confirmed Kermit short/extended packets, negotiated checksums, quoting, modulo-64 sequences, and the `S → F → A → D → Z → B` transaction ladder.
 - Performs resource GETs using the observed `hh01/get/...` request form.
 - Decodes the CBOR returned by `sys/attributes` and presents it in a grouped details dialog with Markdown copy support.
 - Reconstructs the solved `sys/screen` resource using the Evo `7E N FF` run encoding.
 - Converts the little-endian RGB565 framebuffer to a Java image.
+- Saves full-resolution screen captures as PNG through Screen-pane buttons or the
+  screenshot's right-click menu, including a one-click project-directory target.
 - Adds a **TI-84 Evo** PyCharm tool window with Refresh devices, Read attributes,
-  a sortable RAM/Archive file browser with confirmation-protected selected-file
-  deletion, Capture screen, single-file upload, and multi-file project push actions.
+  a sortable RAM/Archive file browser with confirmation-protected Archive and
+  deletion actions, Capture screen, single-file upload, and project push/pull actions.
 - Views and exports every calculator variable in its native Evo representation,
   and creates or replaces numbers, lists, and matrices through the Evo ASCII importer.
 - Converts PNG, JPEG, GIF, and BMP images to compressed Evo Python image variables;
@@ -53,12 +60,16 @@ are on GitHub.
   per-file RAM/Archive targets, and an **Always rebuild / push all files** option.
 - Pushes only files changed since their last successful upload, with visible
   multi-file progress and clear calculator-connection failure pop-ups.
+- Pulls all type-15 Python programs back into local `.py` files, preserves
+  Archive targets in the manifest, and requires confirmation before overwriting local changes.
 - Packages a companion colored PowerShell CLI with optional current-user
   Explorer context menus for sending Python files, folders, or manifests.
 - Lists calculator files from the CLI with their native type IDs, sizes, and
   RAM or Archive locations.
+- Pulls Python projects and saves or deletes selected calculator variables from the CLI;
+  deleting built-in lists L1–L6 clears their contents and restores the default List Editor columns.
 - Packages source into the Evo Python AppVar + CBOR representation before transfer; it does not send loose desktop text as though the calculator had a normal filesystem.
-- Uses negotiated Kermit long packets for host-to-calculator transfers while preserving the proven read-only resource path for screenshots and attributes.
+- Uses negotiated Kermit transfers for uploads while retaining the calculator-tested framing and AUX-byte compatibility needed by downloads, screenshots, and attributes.
 
 ## Target
 
@@ -78,9 +89,14 @@ the included Gradle 9.6.0 wrapper.
 3. In the development PyCharm instance, open **View → Tool Windows → TI-84 Evo**.
 4. Plug in the calculator and press **Refresh devices**.
 5. Try **Read attributes** first, then **Capture screen**.
+   Use the buttons below the capture—or right-click it—to save a PNG to any path
+   or directly into the project directory.
 6. Press **Browse calculator files** to list variable names, types, sizes, and RAM/Archive locations.
 7. Select one or more rows in the calculator file table and press **Delete
-   selected**. Confirm the exact RAM or Archive files before deletion.
+   selected**. Confirm the exact RAM or Archive files before deletion. For
+   built-in lists L1–L6, this clears the values and restores the default L1–L6
+   List Editor columns without changing the other lists' values.
+   To preserve RAM variables instead, press **Save to Archive** and confirm the transfer.
 8. Open a `.py` file in the editor and press **Upload current Python file**.
    Confirm the 1–8 character calculator program name and choose RAM or Archive.
    The current implementation overwrites an existing program with the same name.
@@ -99,6 +115,8 @@ the included Gradle 9.6.0 wrapper.
    replacing an existing manifest.
 3. Review the generated source-to-calculator-name mappings. Calculator names must be unique and contain 1–8 letters or digits.
 4. Press **Push project** to upload every declared file over one calculator connection.
+5. Press **Pull project** to download every Python program from the calculator.
+   Existing manifest mappings are reused; local conflicts are listed before any overwrite.
 
 The manifest is intentionally simple and order-preserving:
 
@@ -130,12 +148,25 @@ matching GitHub release, then open PowerShell in the extracted folder. Keep
 .\ti84-evo.ps1 send --archive .\scripts
 .\ti84-evo.ps1 send
 .\ti84-evo.ps1 send --always-rebuild
+.\ti84-evo.ps1 pull --project .
+.\ti84-evo.ps1 pull --project . --force
+.\ti84-evo.ps1 archive MAIN:15
+.\ti84-evo.ps1 delete MAIN:15
+.\ti84-evo.ps1 delete L1:1
+.\ti84-evo.ps1 delete --yes TEMP:15 OLDLIST:1
 .\ti84-evo.ps1 install-context-menu
 ```
 
 With no path, `send` reads the `.ti84-evo-project` manifest in the current
 folder. A file or folder path sends the applicable Python files directly;
-`--archive` or `--ram` overrides their destination. To build the ZIP locally,
+`--archive` or `--ram` overrides their destination. `pull` reconstructs local
+Python files and the manifest, refusing changed local files unless `--force` is
+provided. Incremental sends check both local fingerprints and the live calculator
+directory, so a configured program deleted from the calculator is restored even
+when its source has not changed. `archive` and `delete` accept one or more `NAME` or `NAME:TYPE`
+selectors. Deletion lists the exact variables and asks for confirmation; use
+`--yes` only for an intentional non-interactive deletion. Built-in lists L1–L6
+are cleared and retained; custom lists are removed. To build the ZIP locally,
 run `.\gradlew.bat cliDistZip` and extract the result from
 `build\distributions`.
 
@@ -167,13 +198,13 @@ PyCharm tool window
         │
         ▼
 EvoDeviceService
-├─ resource reads
+├─ resource operations and project pulls
 │  └─ EvoLink
 │     └─ EvoTransactionEngine
-│        └─ EvoFrameCodec / EvoResourceCodec
+│        └─ KermitPacketCodec / EvoResourceCodec
 │           └─ EvoSerialTransport (jSerialComm)
 │              └─ TI-84 Evo CDC interface
-└─ Python uploads
+└─ Python transfers
    └─ EvoPythonTransfer
       └─ EvoPythonPayload / KermitPacketCodec
          └─ EvoSerialTransport (jSerialComm)
@@ -230,4 +261,4 @@ key = ti_system.wait_key()
 
 1. add calculator-variable rename actions and editable TI-BASIC program support;
 2. add a real **TI-84 Evo** run configuration that pushes and launches the selected Python project;
-3. perform physical-device acceptance of Archive, incremental multi-file, and CLI upload paths.
+3. perform physical-device acceptance of Archive-save, project-pull, incremental multi-file, and CLI paths.

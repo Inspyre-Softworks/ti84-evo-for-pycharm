@@ -95,7 +95,7 @@ object EvoResourceCodec {
         }
 
         if ((decodedTail.lastOrNull()?.toInt()?.and(0xFF)) != 0xFF) return null
-        return ResolvedResource(EvoFrameCodec.concat(prefix, decodedTail), "D-unescaped:evo-ff-runs")
+        return ResolvedResource(KermitPacketCodec.concat(prefix, decodedTail), "D-unescaped:evo-ff-runs")
     }
 
     private fun ByteArray.indexOfSubsequence(needle: ByteArray, limit: Int): Int {
