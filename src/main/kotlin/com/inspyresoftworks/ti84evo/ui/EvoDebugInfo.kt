@@ -45,7 +45,7 @@ internal object EvoDebugInfo {
         appendLine("- **Marketplace Version:** ${safe(status.marketplaceVersion ?: "Unknown")}")
         appendLine("- **Version Status:** ${status.statusDescription}")
         appendLine("- **Marketplace Validation:** ${status.validationDescription}")
-        appendLine("- **Plugin ID:** com.inspyresoftworks.ti84evo")
+        appendLine("- **Plugin ID:** ${com.inspyresoftworks.ti84evo.service.EvoMarketplaceService.PLUGIN_ID}")
         when {
             EvoBuildInfo.commit != null -> appendLine("- **Build/Commit:** ${safe(EvoBuildInfo.commit!!)}")
             status.installedHash != null -> appendLine("- **Build/Commit:** SHA-256 ${safe(status.installedHash)}")
