@@ -5,6 +5,7 @@ The implementation is split into transport, transaction, framing, resource,
 and Python-upload layers:
 
 .. graphviz::
+   :align: center
 
    digraph architecture {
        rankdir=TB;
