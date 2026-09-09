@@ -101,7 +101,9 @@ files are sent unchanged.
 
 The **Transfer settings** window controls whether conversion reduces images, the
 maximum width and height, and the maximum palette size. These preferences are saved
-in PyCharm's user configuration and apply across projects.
+in PyCharm's user configuration and apply across projects. It also controls the
+Marketplace validation interval in seconds; the normal minimum is 60 seconds and the
+default is 3600 seconds (one hour).
 
 Single-file upload
 ------------------

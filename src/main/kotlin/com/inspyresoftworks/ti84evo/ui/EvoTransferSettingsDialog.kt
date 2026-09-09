@@ -20,14 +20,24 @@ import javax.swing.SpinnerNumberModel
 internal class EvoTransferSettingsDialog(
     private val project: Project,
     private val settings: EvoApplicationSettings,
+    private val mischiefMode: Boolean,
+    private val onSaved: () -> Unit,
 ) : DialogWrapper(project) {
-    private val initial = settings.snapshot()
+    private val initial = settings.snapshot(mischiefMode)
     private val optimize = JCheckBox("Reduce image dimensions and color count before transfer", initial.optimizeImages)
     private val maxWidthSpinner = JSpinner(SpinnerNumberModel(initial.imageMaxWidth, 16, 320, 1))
     private val maxHeightSpinner = JSpinner(SpinnerNumberModel(initial.imageMaxHeight, 16, 210, 1))
     private val colors = JComboBox(EvoApplicationSettings.SUPPORTED_COLOR_COUNTS.toTypedArray()).apply {
         selectedItem = initial.imageColors
     }
+    private val marketplaceInterval = JSpinner(
+        SpinnerNumberModel(
+            initial.marketplaceCheckIntervalSeconds,
+            EvoApplicationSettings.minimumMarketplaceCheckIntervalSeconds(mischiefMode),
+            Int.MAX_VALUE,
+            1,
+        ),
+    )
 
     init {
         title = "TI-84 Evo Transfer Settings"
@@ -46,7 +56,16 @@ internal class EvoTransferSettingsDialog(
         add(colors, constraints(1, 3, fill = GridBagConstraints.HORIZONTAL, weight = 1.0))
         add(
             JBLabel("Images keep their aspect ratio and use Evo IM8C run-length compression."),
-            constraints(0, 4, width = 2, weightY = 1.0, anchor = GridBagConstraints.NORTHWEST),
+            constraints(0, 4, width = 2),
+        )
+        add(JBLabel("Marketplace check interval (seconds):"), constraints(0, 5))
+        add(marketplaceInterval, constraints(1, 5, fill = GridBagConstraints.HORIZONTAL, weight = 1.0))
+        add(
+            JBLabel(
+                if (mischiefMode) "Mischief Mode permits intervals below 60 seconds."
+                else "The minimum Marketplace check interval is 60 seconds.",
+            ),
+            constraints(0, 6, width = 2, weightY = 1.0, anchor = GridBagConstraints.NORTHWEST),
         )
     }
 
@@ -56,9 +75,13 @@ internal class EvoTransferSettingsDialog(
             imageMaxWidth = maxWidthSpinner.value as Int,
             imageMaxHeight = maxHeightSpinner.value as Int,
             imageColors = colors.selectedItem as Int,
+            marketplaceCheckIntervalSeconds = marketplaceInterval.value as Int,
         )
-        runCatching { settings.update(candidate) }
-            .onSuccess { super.doOKAction() }
+        runCatching { settings.update(candidate, mischiefMode) }
+            .onSuccess {
+                onSaved()
+                super.doOKAction()
+            }
             .onFailure { Messages.showErrorDialog(project, it.message ?: "Invalid transfer settings", title) }
     }
 

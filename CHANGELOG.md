@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- Validate the installed plugin against JetBrains Marketplace at startup and on a configurable schedule, with retry controls and consistent unverified, outdated, or developmental version labels.
+- Add sanitized Markdown debug information to the About window and remove its redundant dismissal action.
+- Add the hidden lock-file Mischief Mode with developer polling intervals, verbose Marketplace diagnostics, issue and installed-directory actions, and an explicit deactivation prompt on exit.
+
 ## 0.4.0
 
 - Keep PyCharm responsive while pulled project files and their manifest are written to disk.

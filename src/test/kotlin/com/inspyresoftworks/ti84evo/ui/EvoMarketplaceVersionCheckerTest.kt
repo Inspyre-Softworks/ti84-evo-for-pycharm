@@ -11,7 +11,7 @@ class EvoMarketplaceVersionCheckerTest {
 
         assertEquals(EvoVersionState.DEVELOPMENTAL, status.state)
         assertEquals("[DEVELOPMENTAL]", status.tag)
-        assertEquals("v0.3.1 [DEVELOPMENTAL]", status.footerText)
+        assertEquals("v0.3.1 - [DEVELOPMENTAL]", status.footerText)
     }
 
     @Test
@@ -19,7 +19,8 @@ class EvoMarketplaceVersionCheckerTest {
         val status = resolve(installed = "0.2.9", claimed = "0.3.0")
 
         assertEquals(EvoVersionState.OUTDATED, status.state)
-        assertEquals(null, status.tag)
+        assertEquals("[OUTDATED]", status.tag)
+        assertEquals("0.2.9 - [OUTDATED]", status.displayVersion)
     }
 
     @Test
@@ -27,8 +28,33 @@ class EvoMarketplaceVersionCheckerTest {
         val status = resolve(installed = "0.3.0", claimed = "0.3.0", installedHash = "local")
 
         assertEquals(EvoVersionState.MISMATCH, status.state)
-        assertEquals("[VERSION MISMATCH]", status.tag)
+        assertEquals("[DEVELOPMENTAL]", status.tag)
+        assertEquals("0.3.0 - [DEVELOPMENTAL]", status.displayVersion)
         assertTrue(status.detail.contains("hashes differ"))
+    }
+
+    @Test
+    fun `unknown marketplace state replaces comparison labels with unverified`() {
+        val checking = EvoVersionStatus.checking("1.4.2")
+        val unavailable = checking.copy(
+            state = EvoVersionState.UNAVAILABLE,
+            detail = "No connection",
+        )
+
+        assertEquals("1.4.2 [UNVERIFIED]", checking.displayVersion)
+        assertEquals("1.4.2 [UNVERIFIED]", unavailable.displayVersion)
+        assertTrue(checking.isUnverified)
+        assertTrue(unavailable.isUnverified)
+        assertEquals("UNVERIFIED", unavailable.statusDescription)
+    }
+
+    @Test
+    fun `current version has no status suffix`() {
+        val status = resolve(installed = "1.4.2", claimed = "1.4.2")
+
+        assertEquals(EvoVersionState.CURRENT, status.state)
+        assertEquals("1.4.2", status.displayVersion)
+        assertEquals(null, status.tag)
     }
 
     @Test

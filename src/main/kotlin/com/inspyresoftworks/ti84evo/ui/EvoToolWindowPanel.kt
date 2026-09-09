@@ -1,6 +1,7 @@
 package com.inspyresoftworks.ti84evo.ui
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -27,8 +28,11 @@ import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
 import com.inspyresoftworks.ti84evo.project.EvoProjectPull
 import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
 import com.inspyresoftworks.ti84evo.service.EvoDeviceService
+import com.inspyresoftworks.ti84evo.service.EvoMarketplaceService
+import com.inspyresoftworks.ti84evo.service.EvoMischiefMode
 import com.inspyresoftworks.ti84evo.settings.EvoApplicationSettings
 import java.awt.BorderLayout
+import java.awt.Desktop
 import java.awt.Dimension
 import java.awt.GridLayout
 import java.awt.Image
@@ -58,7 +62,7 @@ import javax.swing.filechooser.FileNameExtensionFilter
  *
  * Author: Taylor B. | Inspyre-Softworks.
  */
-class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) {
+class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
     private data class DirectoryRefreshRequest(
         val showSummary: Boolean,
         val completedOperation: String? = null,
@@ -71,6 +75,9 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
 
     private val service = project.getService(EvoDeviceService::class.java)
     private val applicationSettings = ApplicationManager.getApplication().getService(EvoApplicationSettings::class.java)
+    private val marketplaceService = ApplicationManager.getApplication().getService(EvoMarketplaceService::class.java)
+    private val mischiefMode: Boolean
+        get() = EvoMischiefMode.isActive()
     private val installedPluginVersion = EvoBuildInfo.version
     private var versionStatus = EvoVersionStatus.checking(installedPluginVersion)
     private var aboutDialog: EvoAboutDialog? = null
@@ -263,20 +270,17 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
             },
             BorderLayout.SOUTH,
         )
-        checkMarketplaceVersion()
+        marketplaceService.addListener(this, ::updateVersionStatus)
         refresh()
     }
 
-    private fun checkMarketplaceVersion() {
-        ApplicationManager.getApplication().executeOnPooledThread {
-            val checked = EvoMarketplaceVersionChecker.check(installedPluginVersion, PLUGIN_ID)
-            onEdt {
-                if (!project.isDisposed) {
-                    versionStatus = checked
-                    version.text = checked.footerText
-                    version.toolTipText = checked.tooltip
-                    aboutDialog?.updateVersionStatus(checked)
-                }
+    private fun updateVersionStatus(checked: EvoVersionStatus) {
+        onEdt {
+            if (!project.isDisposed) {
+                versionStatus = checked
+                version.text = checked.footerText
+                version.toolTipText = checked.tooltip
+                aboutDialog?.updateVersionStatus(checked)
             }
         }
     }
@@ -862,7 +866,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
 
     private fun configureTransfers() {
-        EvoTransferSettingsDialog(project, applicationSettings).show()
+        EvoTransferSettingsDialog(project, applicationSettings, mischiefMode, marketplaceService::settingsChanged).show()
     }
 
     private fun uploadCurrentPython() {
@@ -1241,14 +1245,42 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()) 
     }
 
     internal fun showAbout() {
-        val dialog = EvoAboutDialog(project, versionStatus, PLUGIN_ID)
+        val dialog = EvoAboutDialog(
+            project = project,
+            versionStatus = versionStatus,
+            pluginId = EvoMarketplaceService.PLUGIN_ID,
+            mischiefMode = mischiefMode,
+            retryMarketplaceValidation = marketplaceService::retryNow,
+            debugInfo = { status ->
+                EvoDebugInfo.create(status, applicationSettings.snapshot(mischiefMode), mischiefMode)
+            },
+            openInstalledPluginDirectory = ::openInstalledPluginDirectory,
+        )
         aboutDialog = dialog
+        if (versionStatus.isUnverified) marketplaceService.retryNow()
         try {
             dialog.show()
         } finally {
             if (aboutDialog === dialog) aboutDialog = null
         }
     }
+
+    private fun openInstalledPluginDirectory() {
+        runCatching {
+            val path = EvoBuildInfo.installationDirectory
+                ?: error("The installed plugin directory could not be determined.")
+            val directory = path.takeIf(Files::isDirectory) ?: path.parent
+            require(directory != null && Files.isDirectory(directory)) {
+                "The installed plugin directory is unavailable."
+            }
+            require(Desktop.isDesktopSupported()) { "The operating system file manager is unavailable." }
+            Desktop.getDesktop().open(directory.toFile())
+        }.onFailure {
+            Messages.showErrorDialog(project, it.message ?: "Could not open the plugin directory.", "TI-84 Evo")
+        }
+    }
+
+    override fun dispose() = Unit
 
     private fun showFailure(error: Throwable) {
         uploadProgress.isVisible = false

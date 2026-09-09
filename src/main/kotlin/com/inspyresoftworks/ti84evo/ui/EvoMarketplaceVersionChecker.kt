@@ -13,6 +13,8 @@ import java.nio.file.Path
 import java.security.MessageDigest
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.DocumentBuilderFactory
+import com.intellij.openapi.diagnostic.Logger
+import com.inspyresoftworks.ti84evo.service.EvoMischiefMode
 import org.w3c.dom.Element
 
 internal enum class EvoVersionState {
@@ -34,13 +36,19 @@ internal data class EvoVersionStatus(
 ) {
     val tag: String?
         get() = when (state) {
-            EvoVersionState.DEVELOPMENTAL -> "[DEVELOPMENTAL]"
-            EvoVersionState.MISMATCH -> "[VERSION MISMATCH]"
+            EvoVersionState.CHECKING, EvoVersionState.UNAVAILABLE -> "[UNVERIFIED]"
+            EvoVersionState.OUTDATED -> "[OUTDATED]"
+            EvoVersionState.DEVELOPMENTAL, EvoVersionState.MISMATCH -> "[DEVELOPMENTAL]"
             else -> null
         }
 
     val displayVersion: String
-        get() = listOfNotNull(installedVersion, tag).joinToString(" ")
+        get() = when (state) {
+            EvoVersionState.CHECKING, EvoVersionState.UNAVAILABLE -> "$installedVersion [UNVERIFIED]"
+            EvoVersionState.OUTDATED -> "$installedVersion - [OUTDATED]"
+            EvoVersionState.DEVELOPMENTAL, EvoVersionState.MISMATCH -> "$installedVersion - [DEVELOPMENTAL]"
+            EvoVersionState.CURRENT -> installedVersion
+        }
 
     val footerText: String
         get() = "v$displayVersion"
@@ -58,6 +66,24 @@ internal data class EvoVersionStatus(
             EvoVersionState.CHECKING -> "Checking…"
             EvoVersionState.UNAVAILABLE -> "Unavailable"
             else -> "Unknown"
+        }
+
+    val isUnverified: Boolean
+        get() = state == EvoVersionState.CHECKING || state == EvoVersionState.UNAVAILABLE
+
+    val validationDescription: String
+        get() = when (state) {
+            EvoVersionState.CHECKING -> "Checking"
+            EvoVersionState.UNAVAILABLE -> "Unverified"
+            else -> "Verified"
+        }
+
+    val statusDescription: String
+        get() = when (state) {
+            EvoVersionState.CHECKING, EvoVersionState.UNAVAILABLE -> "UNVERIFIED"
+            EvoVersionState.CURRENT -> "CURRENT"
+            EvoVersionState.OUTDATED -> "OUTDATED"
+            EvoVersionState.DEVELOPMENTAL, EvoVersionState.MISMATCH -> "DEVELOPMENTAL"
         }
 
     val tooltip: String
@@ -89,18 +115,26 @@ internal object EvoMarketplaceVersionChecker {
     private const val MAX_JAR_BYTES = 32 * 1024 * 1024
     private const val MAX_DESCRIPTOR_BYTES = 1024 * 1024
 
-    fun check(installedVersion: String, pluginId: String): EvoVersionStatus = try {
-        val installedJar = installedJarPath()
-        val installedHash = installedJar?.let(::sha256)
-        val installedDescriptorVersion = installedJar?.let { readPluginDescriptor(it)?.version }
-        val artifact = fetchMarketplaceArtifact(pluginId)
-        resolve(installedVersion, installedDescriptorVersion, installedHash, artifact)
-    } catch (error: Exception) {
-        EvoVersionStatus(
-            installedVersion = installedVersion,
-            state = EvoVersionState.UNAVAILABLE,
-            detail = "Marketplace verification unavailable: ${error.message ?: error.javaClass.simpleName}",
-        )
+    fun check(installedVersion: String, pluginId: String): EvoVersionStatus {
+        var installedHash: String? = null
+        return try {
+            verbose("Starting Marketplace validation for $pluginId $installedVersion")
+            val installedJar = installedJarPath()
+            installedHash = installedJar?.let(::sha256)
+            val installedDescriptorVersion = installedJar?.let { readPluginDescriptor(it)?.version }
+            val artifact = fetchMarketplaceArtifact(pluginId)
+            resolve(installedVersion, installedDescriptorVersion, installedHash, artifact).also {
+                verbose("Marketplace validation completed: ${it.statusDescription}; ${it.detail}")
+            }
+        } catch (error: Exception) {
+            if (EvoMischiefMode.isActive()) LOG.info("Marketplace validation failed", error)
+            EvoVersionStatus(
+                installedVersion = installedVersion,
+                state = EvoVersionState.UNAVAILABLE,
+                detail = "Marketplace verification unavailable: ${error.message ?: error.javaClass.simpleName}",
+                installedHash = installedHash,
+            )
+        }
     }
 
     internal fun resolve(
@@ -191,6 +225,7 @@ internal object EvoMarketplaceVersionChecker {
     }
 
     private fun download(url: String): ByteArray {
+        verbose("Downloading Marketplace validation resource: $url")
         val connection = URI(url).toURL().openConnection() as HttpURLConnection
         connection.instanceFollowRedirects = true
         connection.connectTimeout = 5_000
@@ -349,4 +384,10 @@ internal object EvoMarketplaceVersionChecker {
             }
         }
     }
+
+    private fun verbose(message: String) {
+        if (EvoMischiefMode.isActive()) LOG.info("[Mischief Mode] $message")
+    }
+
+    private val LOG = Logger.getInstance(EvoMarketplaceVersionChecker::class.java)
 }
