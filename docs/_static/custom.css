@@ -1,0 +1,11 @@
+div.graphviz {
+    text-align: center;
+}
+
+div.graphviz svg,
+div.graphviz object,
+div.graphviz img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
