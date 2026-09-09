@@ -12,7 +12,7 @@ release = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 extensions = [
   "sphinx.ext.napoleon",
-  "sphinx.ext.graphiz"
+  "sphinx.ext.graphviz"
 ]
 
 graphviz_output_format = 'svg'
