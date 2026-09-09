@@ -6,13 +6,14 @@ and Python-upload layers:
 
 .. graphviz::
    :align: center
+   :class: only-light architecture-diagram
 
    digraph architecture {
        rankdir=TB;
        splines=ortho;
 
        graph [
-           bgcolor="transparent",
+           bgcolor="#ffffff",
            pad=0.25,
            nodesep=0.35,
            ranksep=0.5
@@ -21,14 +22,82 @@ and Python-upload layers:
        node [
            shape=box,
            style="rounded,filled",
-           fillcolor="#f7f7f7",
-           color="#666666",
+           fillcolor="#f3fbf5",
+           color="#269745",
+           fontcolor="#173b22",
            fontname="Arial",
            fontsize=10,
-           margin="0.18,0.10"
+           margin="0.18,0.10",
+           penwidth=1.2
        ];
 
        edge [
+           color="#52605a",
+           fontcolor="#365141",
+           fontname="Arial",
+           fontsize=9,
+           arrowsize=0.7
+       ];
+
+       tool [label="PyCharm tool window"];
+       service [label="EvoDeviceService"];
+
+       evolink [label="EvoLink"];
+       python_transfer [label="EvoPythonTransfer"];
+
+       transaction [label="EvoTransactionEngine"];
+       python_payload [label="EvoPythonPayload"];
+
+       codec [label="KermitPacketCodec"];
+       transport [label="EvoSerialTransport"];
+
+       tool -> service;
+
+       service -> evolink [label="resource reads"];
+       service -> python_transfer [label="Python uploads"];
+
+       evolink -> transaction;
+       python_transfer -> python_payload;
+
+       transaction -> codec [label="resource compatibility"];
+       python_payload -> codec;
+
+       codec -> transport;
+
+       { rank = same; evolink; python_transfer; }
+       { rank = same; transaction; python_payload; }
+   }
+
+.. graphviz::
+   :align: center
+   :class: only-dark architecture-diagram
+
+   digraph architecture_dark {
+       rankdir=TB;
+       splines=ortho;
+
+       graph [
+           bgcolor="#131416",
+           pad=0.25,
+           nodesep=0.35,
+           ranksep=0.5
+       ];
+
+       node [
+           shape=box,
+           style="rounded,filled",
+           fillcolor="#241a31",
+           color="#a161f0",
+           fontcolor="#eadffd",
+           fontname="Arial",
+           fontsize=10,
+           margin="0.18,0.10",
+           penwidth=1.2
+       ];
+
+       edge [
+           color="#b49acb",
+           fontcolor="#c7b7d6",
            fontname="Arial",
            fontsize=9,
            arrowsize=0.7

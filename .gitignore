@@ -12,6 +12,7 @@ local.properties
 
 # Read the Docs / Sphinx output
 docs/_build/
+.venv-docs/
 
 # Operating-system and editor noise
 .DS_Store

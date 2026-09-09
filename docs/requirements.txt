@@ -1,2 +1,7 @@
 sphinx>=8.1,<9
 furo
+sphinx-design
+sphinx-copybutton
+# Includes the unreleased Sphinx 8 _Opt deprecation fix from upstream.
+sphinx-hoverxref @ https://github.com/readthedocs/sphinx-hoverxref/archive/f702d3efffda796ba1d7747b64cadb732fa8a274.tar.gz
+sphinxext-opengraph

@@ -22,14 +22,26 @@ uploaded as workflow artifacts.
 Documentation checks
 --------------------
 
-Install the documentation dependencies and build with warnings treated as
-errors:
+The documentation build scripts check for Python and Graphviz, install missing
+dependencies, create an isolated ``.venv-docs`` environment, and produce a
+clean local build with warnings treated as errors.
+
+On Windows:
+
+.. code-block:: powershell
+
+   .\scripts\build_docs.ps1
+
+On macOS, Linux, and other Unix-like systems:
 
 .. code-block:: console
 
-   python -m pip install --requirement docs/requirements.txt
-   python -m sphinx -W --keep-going -b html docs docs/_build/html
-   python -m sphinx -W --keep-going -b linkcheck docs docs/_build/linkcheck
+   sh scripts/build_docs.sh
+
+Pass ``-Open`` on Windows or ``--open`` on Unix to open the resulting
+``docs/_build/html/index.html`` in the default browser. The scripts reuse the
+environment on later runs and reinstall Python packages only when
+``docs/requirements.txt`` changes or the environment fails its import check.
 
 Release checklist
 -----------------

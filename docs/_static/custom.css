@@ -8,4 +8,115 @@ div.graphviz img {
     display: block;
     margin-left: auto;
     margin-right: auto;
+    border-radius: 0.35rem;
+}
+
+/* Add a compact brand marker beneath the page title and major sections. */
+article[role="main"] h1::after,
+article[role="main"] h2::after {
+    content: "";
+    display: block;
+    width: 3.5rem;
+    height: 0.2rem;
+    margin-top: 0.45rem;
+    border-radius: 999px;
+    background: var(--color-brand-primary);
+}
+
+/* Separate sibling sections so long technical pages remain easy to scan. */
+article[role="main"] section > section + section {
+    margin-top: 2.25rem;
+    padding-top: 1.75rem;
+    border-top: 1px solid var(--color-background-border);
+}
+
+article[role="main"] section > section + section > :is(h2, h3, h4, h5, h6):first-child {
+    margin-top: 0;
+}
+
+/* Make the current page in the sidebar feel selected, not merely bold. */
+.sidebar-tree .current-page > .reference {
+    padding-left: calc(var(--sidebar-item-spacing-horizontal) - 0.2rem);
+    border-left: 0.2rem solid var(--color-brand-primary);
+    border-radius: 0 0.35rem 0.35rem 0;
+    background: var(--color-accent-soft);
+}
+
+/* Give inline code a quiet chip treatment while preserving linked code color. */
+code.literal {
+    padding: 0.08rem 0.28rem;
+    border: 1px solid var(--color-accent-border);
+    border-radius: 0.3rem;
+    background: var(--color-accent-soft);
+    color: var(--color-brand-content);
+}
+
+a code.literal {
+    color: inherit;
+}
+
+::selection {
+    background: var(--color-selection-background);
+}
+
+::-moz-selection {
+    background: var(--color-selection-background);
+}
+
+/* Give each glossary entry a clear visual boundary without boxing it in. */
+dl.glossary > dt {
+    color: var(--color-glossary-term);
+}
+
+dl.glossary > dt:not(:first-child) {
+    border-top: 1px solid var(--color-background-border);
+    margin-top: 1rem;
+    padding-top: 1rem;
+}
+
+dl.glossary > dd {
+    margin-bottom: 0;
+}
+
+/* Turn previous/next navigation into lightweight, responsive cards. */
+.related-pages a.next-page,
+.related-pages a.prev-page {
+    box-sizing: border-box;
+    padding: 0.8rem 1rem;
+    border: 1px solid var(--color-background-border);
+    border-radius: 0.55rem;
+    background: var(--color-card-background);
+    transition: border-color 140ms ease, box-shadow 140ms ease,
+        transform 140ms ease;
+}
+
+.related-pages a.next-page:hover,
+.related-pages a.prev-page:hover {
+    border-color: var(--color-accent-border);
+    box-shadow: 0 0.3rem 0.9rem var(--color-accent-soft);
+    transform: translateY(-1px);
+}
+
+@media (max-width: 46em) {
+    .related-pages a.next-page,
+    .related-pages a.prev-page {
+        max-width: 100%;
+        margin-top: 0.5rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .related-pages a.next-page,
+    .related-pages a.prev-page {
+        transition: none;
+    }
+}
+
+.sd-tab-set {
+    --sd-color-tabs-label-active: var(--color-brand-content);
+    --sd-color-tabs-label-hover: var(--color-brand-content);
+    --sd-color-tabs-underline-active: var(--color-brand-primary);
+    --sd-color-tabs-underline-hover: var(--color-accent-border);
+    --sd-color-tabs-overline: var(--color-background-border);
+    --sd-color-tabs-underline: var(--color-background-border);
 }

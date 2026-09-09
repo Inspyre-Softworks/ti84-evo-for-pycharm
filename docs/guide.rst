@@ -13,10 +13,21 @@ development sandbox. A separate Gradle or PyCharm installation is not required.
 Running the plugin
 ------------------
 
-From the repository root, run ``.\gradlew.bat runIde`` on Windows or
-``./gradlew runIde`` on macOS/Linux. In the development PyCharm instance, open
-**View → Tool Windows → TI-84 Evo** and press **Refresh devices**. Use **Read
-attributes** before attempting a write action.
+From the repository root, launch the development IDE for your platform:
+
+.. tab-set::
+
+   .. tab-item:: Windows
+
+      Run ``.\gradlew.bat runIde`` from PowerShell or Command Prompt.
+
+   .. tab-item:: macOS / Linux
+
+      Run ``./gradlew runIde`` from a terminal.
+
+In the development PyCharm instance, open **View → Tool Windows → TI-84 Evo**
+and press **Refresh devices**. Use **Read attributes** before attempting a
+write action.
 
 The tool window supports screen capture, attribute reads, calculator file
 browsing, upload of the current Python file, and ordered multi-file project
