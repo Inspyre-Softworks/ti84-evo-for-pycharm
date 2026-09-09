@@ -1248,7 +1248,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         val dialog = EvoAboutDialog(
             project = project,
             versionStatus = versionStatus,
-            pluginId = PLUGIN_ID,
+            pluginId = EvoMarketplaceService.PLUGIN_ID,
             mischiefMode = mischiefMode,
             retryMarketplaceValidation = marketplaceService::retryNow,
             debugInfo = { status ->
