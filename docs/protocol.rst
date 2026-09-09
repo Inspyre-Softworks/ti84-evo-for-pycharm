@@ -9,42 +9,56 @@ and Python-upload layers:
 
    digraph architecture {
        rankdir=TB;
-       graph [bgcolor="transparent"];
+       splines=ortho;
+
+       graph [
+           bgcolor="transparent",
+           pad=0.25,
+           nodesep=0.35,
+           ranksep=0.5
+       ];
+
        node [
            shape=box,
            style="rounded",
-           fontname="sans-serif",
-           fontsize=10
+           fontname="Arial",
+           fontsize=10,
+           margin="0.18,0.10"
        ];
+
        edge [
-           fontname="sans-serif",
-           fontsize=9
+           fontname="Arial",
+           fontsize=9,
+           arrowsize=0.7
        ];
 
        tool [label="PyCharm tool window"];
        service [label="EvoDeviceService"];
 
        evolink [label="EvoLink"];
+       python_transfer [label="EvoPythonTransfer"];
+
        transaction [label="EvoTransactionEngine"];
+       python_payload [label="EvoPythonPayload"];
+
        codec [label="KermitPacketCodec"];
        transport [label="EvoSerialTransport"];
-
-       python [label="EvoPythonTransfer"];
-       payload [label="EvoPythonPayload"];
 
        tool -> service;
 
        service -> evolink [label="resource reads"];
+       service -> python_transfer [label="Python uploads"];
+
        evolink -> transaction;
-       transaction -> codec [
-           label="resource compatibility"
-       ];
+       python_transfer -> python_payload;
+
+       transaction -> codec [label="resource compatibility"];
+       python_payload -> codec;
+
        codec -> transport;
 
-       service -> python [label="Python uploads"];
-       python -> payload;
-       payload -> codec;
-       codec -> transport;
+       { rank = same; evolink; python_transfer; }
+       { rank = same; transaction; python_payload; }
    }
 
 Transport setup
