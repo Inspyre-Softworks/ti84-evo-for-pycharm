@@ -1,1 +1,2 @@
 sphinx>=8.1,<9
+furo

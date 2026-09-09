@@ -20,7 +20,9 @@ and Python-upload layers:
 
        node [
            shape=box,
-           style="rounded",
+           style="rounded,filled",
+           fillcolor="#f7f7f7",
+           color="#666666",
            fontname="Arial",
            fontsize=10,
            margin="0.18,0.10"

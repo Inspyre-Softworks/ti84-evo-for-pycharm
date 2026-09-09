@@ -18,5 +18,23 @@ extensions = [
 graphviz_output_format = 'svg'
 
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-html_theme = "alabaster"
+
+html_theme = "furo"
+html_theme_options = {
+    'navigation_with_keys': True,
+
+    'light_css_variables': {
+        'color-brand-primary': '#5e5ce6',
+        'color-brand-content': '#5e5ce6',
+    },
+
+    'dark_css_variables': {
+        'color-brand-primary': '#a161f0',
+        'color-brand-content': '#a161f0',
+    },
+}
 html_title = project
+
+
+html_static_path = ['_static']
+html_css_files = ['custom.css']
