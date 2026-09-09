@@ -4,21 +4,47 @@ Protocol overview
 The implementation is split into transport, transaction, framing, resource,
 and Python-upload layers:
 
-.. code-block:: text
+.. graphviz::
 
-   PyCharm tool window
-       |
-   EvoDeviceService
-       +-- resource reads
-       |   +-- EvoLink
-       |       +-- EvoTransactionEngine
-       |           +-- KermitPacketCodec resource compatibility / EvoResourceCodec
-       |               +-- EvoSerialTransport
-       |
-       +-- Python uploads
-           +-- EvoPythonTransfer
-               +-- EvoPythonPayload / KermitPacketCodec
-                   +-- EvoSerialTransport
+   digraph architecture {
+       rankdir=TB;
+       graph [bgcolor="transparent"];
+       node [
+           shape=box,
+           style="rounded",
+           fontname="sans-serif",
+           fontsize=10
+       ];
+       edge [
+           fontname="sans-serif",
+           fontsize=9
+       ];
+
+       tool [label="PyCharm tool window"];
+       service [label="EvoDeviceService"];
+
+       evolink [label="EvoLink"];
+       transaction [label="EvoTransactionEngine"];
+       codec [label="KermitPacketCodec"];
+       transport [label="EvoSerialTransport"];
+
+       python [label="EvoPythonTransfer"];
+       payload [label="EvoPythonPayload"];
+
+       tool -> service;
+
+       service -> evolink [label="resource reads"];
+       evolink -> transaction;
+       transaction -> codec [
+           label="resource compatibility"
+       ];
+       codec -> transport;
+
+       service -> python [label="Python uploads"];
+       python -> payload;
+       payload -> codec;
+       codec -> transport;
+   }
 
 Transport setup
 ---------------
