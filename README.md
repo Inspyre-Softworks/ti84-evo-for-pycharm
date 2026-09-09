@@ -101,7 +101,8 @@ the included Gradle 9.6.0 wrapper.
    Confirm the 1–8 character calculator program name and choose RAM or Archive.
    The current implementation overwrites an existing program with the same name.
 9. Use **Upload picture** for a desktop image or an existing Evo picture file.
-   **Transfer settings** stores image limits globally for PyCharm, not in the project.
+   **Transfer settings** stores image limits and the Marketplace validation interval
+   globally for PyCharm, not in the project. Validation defaults to once per hour.
 10. In **Calculator Files**, select a row and press **View / edit** to inspect or
     export it. Native numbers, lists, and matrices are decoded, and **Replace Value**
     opens their current contents in a pre-populated editor. **Add variable** creates a

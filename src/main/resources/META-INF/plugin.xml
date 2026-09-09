@@ -23,9 +23,17 @@
             icon="/icons/toolWindowIcon.svg"
             anchor="right"
             factoryClass="com.inspyresoftworks.ti84evo.ui.EvoToolWindowFactory" />
+        <postStartupActivity
+            implementation="com.inspyresoftworks.ti84evo.service.EvoMarketplaceStartupActivity" />
     </extensions>
 
     <extensions defaultExtensionNs="Pythonid">
         <importResolver implementation="com.inspyresoftworks.ti84evo.python.TiPythonImportResolver" />
     </extensions>
+
+    <applicationListeners>
+        <listener
+            class="com.inspyresoftworks.ti84evo.service.EvoApplicationLifecycleListener"
+            topic="com.intellij.ide.AppLifecycleListener" />
+    </applicationListeners>
 </idea-plugin>
