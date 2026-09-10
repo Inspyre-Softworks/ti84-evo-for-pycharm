@@ -27,6 +27,17 @@ TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, m
 - Get completion, parameter hints, quick documentation, and inspections for `ti_draw`, `ti_image`, `ti_system`, `ti_plotlib`, `ti_hub`, and `ti_rover`.
 - Use the companion PowerShell CLI and optional Windows Explorer context menus outside PyCharm.
 
+## Find what you need
+
+| Goal | Documentation |
+| --- | --- |
+| Install, connect, and upload a first program | [Getting started](docs/guide.rst) |
+| Browse, edit, archive, or delete calculator variables | [Calculator files and images](docs/calculator-files.rst) |
+| Configure, push, or pull a multi-file project | [Multi-file projects](docs/projects.rst) |
+| Use PowerShell or Windows Explorer | [Companion CLI](docs/cli.rst) |
+| Fix detection, timeout, conflict, or conversion problems | [Troubleshooting](docs/troubleshooting.rst) |
+| Understand or contribute to the implementation | [Protocol overview](docs/protocol.rst) · [Development](docs/development.rst) |
+
 ## Requirements
 
 - PyCharm 2026.2 or newer
@@ -121,7 +132,7 @@ Run `.\ti84-evo.ps1 --help` for all commands and options. With no path, `send` r
 
 ## Documentation and support
 
-The [full documentation](https://ti84-evo-for-pycharm.readthedocs.io/en/latest/) includes the user guide, protocol overview, glossary, and development and release notes.
+The [full documentation](https://ti84-evo-for-pycharm.readthedocs.io/en/latest/) includes task-focused user guides, troubleshooting, protocol reference, a glossary, and development and release notes.
 
 - Found a bug or have a feature request? [Open an issue](https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm/issues).
 - Want to see what changed? Read the [changelog](CHANGELOG.md).

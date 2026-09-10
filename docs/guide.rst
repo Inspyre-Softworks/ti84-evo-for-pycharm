@@ -1,233 +1,146 @@
-User guide
-==========
+Getting started
+===============
 
-Requirements
-------------
+This page takes you from installation to a verified calculator connection and
+your first Python upload. After that, use :doc:`calculator-files` for variables
+and pictures or :doc:`projects` for multi-file synchronization.
 
-* JDK 25 for the Gradle build and development IDE runtime
-* A TI-84 Evo connected over USB when using hardware actions
+What you need
+-------------
 
-The included Gradle 9.6.0 wrapper downloads the configured PyCharm 2026.2.1
-development sandbox. A separate Gradle or PyCharm installation is not required.
+* PyCharm 2026.2 or newer
+* A TI-84 Evo
+* A USB data cable (some charging cables do not carry data)
 
-Running the plugin
+Java is not required to use the PyCharm plugin. Install JDK 25 only when you
+want to :doc:`build from source <development>` or use the :doc:`companion CLI
+<cli>`.
+
+Install the plugin
 ------------------
 
-From the repository root, launch the development IDE for your platform:
+In PyCharm:
 
-.. tab-set::
+1. Open **Settings → Plugins → Marketplace**.
+2. Search for **TI-84 Evo**.
+3. Select **Install** and restart PyCharm if prompted.
 
-   .. tab-item:: Windows
+You can instead download a plugin ZIP from the `JetBrains Marketplace
+<https://plugins.jetbrains.com/plugin/33854-ti-84-evo>`_ or a matching `GitHub
+release <https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm/releases>`_.
+Install it with **Settings → Plugins → ⚙ → Install Plugin from Disk**.
 
-      Run ``.\gradlew.bat runIde`` from PowerShell or Command Prompt.
-
-   .. tab-item:: macOS / Linux
-
-      Run ``./gradlew runIde`` from a terminal.
-
-In the development PyCharm instance, open **View → Tool Windows → TI-84 Evo**
-and press **Refresh devices**. Use **Read attributes** before attempting a
-write action.
-
-The tool window supports screen capture, attribute reads, calculator file
-browsing, upload of the current Python file, and ordered multi-file project
-pushes.
-
-Calculator attributes
----------------------
-
-Press **Read attributes** to open a grouped device-details dialog. Protocol
-keys are translated into friendly labels, byte counts are shown in readable
-units, and power and certificate states are explained. Press **Copy
-Attributes** to place a Markdown report on the clipboard; the report includes
-both the formatted details and the original protocol key/value pairs.
-
-Screen capture
---------------
-
-Press **Capture screen** to display the calculator framebuffer in the **Screen**
-tab. The two buttons beneath the image save the original full-resolution capture
-as a PNG: **Save As…** opens a destination chooser, while **Save to Project Dir**
-uses a timestamped filename in the open project's root directory. Right-click
-the screenshot for the same two actions. Existing files selected through
-**Save As…** require confirmation before replacement; project-directory saves
-choose a numbered suffix instead of overwriting an existing capture.
-
-Calculator file browser
------------------------
-
-Press **Browse calculator files** to read the calculator directory. The
-sortable table shows each decoded variable name and type together with its
-byte size and RAM or Archive location. Opening or clicking the **Calculator
-Files** tab reads a fresh directory. Successful variable, picture, Python,
-project, and Archive uploads also refresh the table automatically while
-preserving any selection whose calculator identity still exists.
-
-Deleting calculator files
--------------------------
-
-Select one or more rows in the calculator file table and press **Delete
-selected**. The confirmation lists each selected variable's name, type, and RAM
-or Archive location. For the calculator's built-in ``L1`` through ``L6`` list
-slots, this action clears every value but keeps the empty list registered in the
-List Editor. The calculator's default L1–L6 column layout is restored after a
-built-in list is added, replaced, or cleared. Custom lists and all other
-selected variables are removed. Cleared
-or deleted data cannot be recovered. If a multi-file operation fails partway
-through, the table removes only variables confirmed absent from a fresh
-calculator directory and the output identifies completed clears/deletions and
-the variable that failed.
-
-The standalone CLI provides the same operation with ``delete NAME[:TYPE]``.
-It prints the exact deletion plan and requires interactive confirmation. Pass
-``--yes`` for an intentional non-interactive invocation; ``rm`` is an alias.
-The plan and result label built-in list operations as ``CLEAR``/``CLEARED``.
-
-Saving calculator files to Archive
-----------------------------------
-
-Select one or more RAM rows and press **Save to Archive**. The plugin downloads
-each native variable envelope, restores its transfer checksum, re-saves it with
-the Archive target, and verifies that the calculator directory reports the new
-location. Completed variables remain marked as Archive if a later selection
-fails.
-
-Select one row and press **View / edit** to read its complete native Evo variable
-envelope. The viewer can save a lossless calculator file for every variable type.
-Native numbers, lists, and matrices are decoded to real, fraction, complex, list,
-or matrix text. Their **Replace Value** action opens a pre-populated editor;
-**Add variable** creates new values of those three types using comma/space-separated
-input. Existing lists are replaced through a native type-1 payload so their
-columns remain registered in the calculator's List Editor. Other formats remain
-available for raw inspection and export while their
-editable binary formats continue to be documented.
-
-Picture upload
---------------
-
-**Upload picture** accepts PNG, JPEG, GIF, and BMP images and converts them to a
-palette-based, run-length-compressed Evo Python image variable. The variable can be
-loaded with ``ti_image.load_image(name)``. Existing ``.8ci2``, ``.8ca2``, and ``.8xv2``
-files are sent unchanged.
-
-The **Transfer settings** window controls whether conversion reduces images, the
-maximum width and height, and the maximum palette size. These preferences are saved
-in PyCharm's user configuration and apply across projects. It also controls the
-Marketplace validation interval in seconds; the normal minimum is 60 seconds and the
-default is 3600 seconds (one hour).
-
-Single-file upload
+Connect and verify
 ------------------
 
-Open a ``.py`` file in the editor and press **Upload current Python file**.
-Enter a calculator program name containing one through eight letters or digits.
-The plugin reads the current editor document, including unsaved changes,
-normalizes the calculator name to uppercase, and uploads a type-15 Python
-program to the selected RAM or Archive target. Overwrite is enabled, so an
-existing program with the same name may be replaced.
+.. graphviz::
+   :align: center
 
-Multi-file projects
--------------------
+   digraph first_connection {
+       rankdir=LR;
+       graph [bgcolor="transparent", pad=0.15, nodesep=0.3, ranksep=0.4];
+       node [shape=box, style="rounded,filled", fillcolor="#f3fbf5",
+             color="#269745", fontcolor="#173b22", fontname="Arial",
+             fontsize=10, margin="0.16,0.10"];
+       edge [color="#52605a", fontcolor="#365141", fontname="Arial",
+             fontsize=9, arrowsize=0.7];
 
-Choose **Configure project** to open the full configuration window. Add and
-remove Python files, reorder them, edit calculator names, and choose Archive
-per file. The plugin writes a ``.ti84-evo-project`` manifest at the project
-root:
+       cable [label="Connect USB\ndata cable"];
+       window [label="Open TI-84 Evo\ntool window"];
+       refresh [label="Refresh\ndevices"];
+       attributes [label="Read\nattributes"];
+       ready [label="Connection\nverified", fillcolor="#e8f5ec"];
 
-.. code-block:: properties
+       cable -> window -> refresh -> attributes -> ready;
+   }
 
-   @always-push-all=false
-   lib/drawing.py=DRAW|Archive
-   lib/state.py=STATE|RAM
-   main.py=MAIN|RAM
+1. Connect and wake the calculator.
+2. Open **View → Tool Windows → TI-84 Evo**.
+3. Select **Refresh devices**. Exactly one TI-84 Evo must be connected.
+4. Select **Read attributes**.
 
-Paths are project-relative, and selected files must be inside the project
-directory. Calculator names are unique and limited to one through eight letters
-or digits. The generated manifest sorts the selected source paths; edit the line
-order to change the upload order. The file is intended to be checked into source
-control. **Always rebuild / push all files** can be enabled in the configuration
-window for calculators that are frequently reset or when one project is sent
-to several calculators.
+The attributes dialog groups the calculator details into readable categories.
+**Copy Attributes** places a Markdown report on the clipboard, including the
+original protocol keys for diagnostics.
 
-**Push project** fingerprints the configured target, calculator name, and
-source, then reads the live calculator directory. An entry is skipped only when
-its fingerprint is unchanged and a type-15 program with the configured name and
-RAM/Archive target is present. Deleting or moving a project program on the
-calculator therefore makes that entry pending even when its local source has not
-changed. Successful files are recorded individually, so retrying after a partial
-failure does not resend completed files that remain present. The optional
-always-rebuild setting disables this filtering. Uploads use one serial connection
-and the tool window displays file-count progress. Unsaved manifest and source
-editor changes are included. If the calculator cannot be reached, the action
-shows a clear troubleshooting pop-up; a partial failure still identifies
-completed and failed programs.
+If the calculator is not found or the operation times out, follow
+:doc:`troubleshooting` before attempting a write.
 
-**Pull project** downloads every type-15 Python program, decodes its AppVar
-source as UTF-8, and rebuilds the local source files and project manifest.
-Existing manifest paths are reused by calculator program name, while new
-programs receive deterministic lowercase ``.py`` filenames. RAM/Archive targets
-are preserved. The confirmation identifies local files whose contents differ;
-those files are not overwritten unless the user explicitly chooses
-**Overwrite and Pull**. Pulled files are recorded as synchronized so a normal
-push does not immediately resend them.
+Upload your first Python file
+-----------------------------
 
-PowerShell and Explorer sender
-------------------------------
+1. Open a ``.py`` file in the editor.
+2. Select **Upload current Python file** in the TI-84 Evo tool window.
+3. Enter a calculator program name containing one to eight letters or digits.
+4. Choose RAM or Archive and confirm the upload.
 
-Install Java 25, then download the CLI ZIP from the matching GitHub release or
-build ``cliDistZip`` to create it in ``build/distributions``. Extract the ZIP,
-keep ``ti84-evo.ps1`` beside ``ti84-evo-cli.jar``, and run from that folder:
+The plugin reads the current editor document, so unsaved changes are included.
+It normalizes the calculator name to uppercase and replaces an existing Python
+program with the same name.
 
-.. code-block:: powershell
+.. important::
 
-   .\ti84-evo.ps1 --help
-   .\ti84-evo.ps1 list-files                       # names, types, sizes, and memory
-   .\ti84-evo.ps1 send .\main.py               # one Python file
-   .\ti84-evo.ps1 send                         # changed manifest entries
-   .\ti84-evo.ps1 send --always-rebuild        # every manifest entry
-   .\ti84-evo.ps1 send --archive .\scripts     # applicable .py files
-   .\ti84-evo.ps1 pull --project .              # all calculator Python programs
-   .\ti84-evo.ps1 pull --project . --force      # permit local-file replacement
-   .\ti84-evo.ps1 archive MAIN:15               # save a variable to Archive
-   .\ti84-evo.ps1 delete MAIN:15                # confirm and delete a variable
-   .\ti84-evo.ps1 delete L1:1                   # clear L1 but keep its list slot
-   .\ti84-evo.ps1 delete --yes TEMP:15          # non-interactive deletion
-   .\ti84-evo.ps1 install-context-menu         # current-user Explorer actions
-
-With no path, ``send`` uses ``.ti84-evo-project`` in the current directory. A
-file or directory argument sends applicable Python files directly, while
-``--archive`` or ``--ram`` overrides the calculator destination.
-``pull`` reconstructs source files and ``.ti84-evo-project`` and refuses to
-replace changed local files unless ``--force`` is supplied. ``archive`` accepts
-one or more variable names; add ``:TYPE`` when a name is ambiguous. ``delete``
-uses the same selectors, prints the exact plan, and requires confirmation unless
-``--yes`` is supplied. Selecting built-in list ``L1`` through ``L6`` clears its
-contents and retains its calculator list slot; custom lists are deleted normally.
-
-The colored terminal UI shows an upload plan, connection state, aligned
-progress bars, storage targets, and a final summary. ``list-files`` performs a
-read-only directory query and displays each calculator variable's numeric type,
-size, and RAM or Archive location. The context-menu installer
-adds **Send to TI-84 Evo** for ``.py`` files and folders without requiring
-administrator access. Run ``uninstall-context-menu`` to remove those entries.
-The CLI is packaged separately but remains in this repository so it shares the
-same manifest, incremental state, transport, and protocol implementation as the
-PyCharm plugin.
+   Keep backups of important calculator data. This is an alpha
+   hardware-integration project. Single-file Python upload and read-only
+   directory browsing have been tested on a physical TI-84 Evo; other write
+   and synchronization workflows still need broader device testing.
 
 TI Python editor support
 ------------------------
 
-The plugin exposes typed editor stubs for ``ti_draw``, ``ti_image``,
-``ti_system``, ``ti_plotlib``, ``ti_hub``, and ``ti_rover``. They provide
-import and member completion, parameter hints, quick documentation, and
-type-aware inspections. The stubs are an editor-only synthetic library: they
-are not installed as a desktop runtime and are never uploaded to the calculator.
+The plugin provides completion, parameter hints, quick documentation, and
+type-aware inspections for these calculator modules:
 
-Hardware acceptance
--------------------
+* ``ti_draw``
+* ``ti_hub``
+* ``ti_image``
+* ``ti_plotlib``
+* ``ti_rover``
+* ``ti_system``
 
-The single-file path was accepted on a physical TI-84 Evo on August 21, 2026:
-a 29-byte Python source was uploaded as ``EVOTEST`` to RAM, the plugin reported
-the completed transfer, and a subsequent directory read returned the new
-type-15 program. Multi-file project push still requires separate physical
-acceptance, as do Archive-save and project-pull operations.
+The bundled ``.pyi`` files form an editor-only :term:`synthetic library`. They
+are not desktop implementations of the modules and are never uploaded to the
+calculator.
+
+Version status and diagnostics
+------------------------------
+
+The tool-window footer shows the installed plugin version. On startup and at a
+configurable interval, the plugin compares it with the public JetBrains
+Marketplace release. A label may indicate that the build is **OUTDATED**,
+**DEVELOPMENTAL**, or **UNVERIFIED**; hover over the footer or open **About
+TI-84 Evo** for the explanation.
+
+The About window can retry an unavailable Marketplace check and copy sanitized
+Markdown debug information. The check interval is available under **Transfer
+settings**; the normal minimum is 60 seconds and the default is one hour.
+
+Where to go next
+----------------
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Manage calculator files
+      :link: calculator-files
+      :link-type: doc
+
+      Browse, inspect, export, edit, archive, delete, and upload pictures.
+
+   .. grid-item-card:: Synchronize a project
+      :link: projects
+      :link-type: doc
+
+      Configure, push, and pull a multi-file Python project safely.
+
+   .. grid-item-card:: Use the PowerShell CLI
+      :link: cli
+      :link-type: doc
+
+      Send files outside PyCharm and add optional Explorer actions.
+
+   .. grid-item-card:: Fix a connection problem
+      :link: troubleshooting
+      :link-type: doc
+
+      Work through detection, timeout, conflict, and reporting guidance.

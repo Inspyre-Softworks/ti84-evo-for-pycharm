@@ -4,6 +4,26 @@ Protocol overview
 The implementation is split into transport, transaction, framing, resource,
 and Python-upload layers:
 
+Layer responsibilities
+----------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Layer
+     - Responsibility
+   * - UI and service
+     - Run operations away from the UI thread and present progress and failures
+   * - Resource and variable operations
+     - Address calculator endpoints and interpret their CBOR envelopes
+   * - Transaction engine
+     - Coordinate the ordered Kermit request/response exchange
+   * - Packet codec
+     - Encode lengths, quoting, repetition, sequences, and block checks
+   * - Serial transport
+     - Detect the Evo USB CDC port and move complete packet bytes
+
 .. graphviz::
    :align: center
    :class: only-light architecture-diagram
@@ -131,6 +151,45 @@ and Python-upload layers:
        { rank = same; evolink; python_transfer; }
        { rank = same; transaction; python_payload; }
    }
+
+Transaction flow
+----------------
+
+Most resource reads and writes use the same negotiated transaction ladder. The
+descriptor and data direction change by operation, while acknowledgements gate
+each step.
+
+.. graphviz::
+   :align: center
+
+   digraph transaction_flow {
+       rankdir=LR;
+       graph [bgcolor="transparent", pad=0.15, nodesep=0.22, ranksep=0.4];
+       node [shape=circle, style="filled", fillcolor="#f3fbf5",
+             color="#269745", fontcolor="#173b22", fontname="Arial",
+             fontsize=10, width=0.46, fixedsize=true];
+       edge [color="#52605a", fontcolor="#365141", fontname="Arial",
+             fontsize=9, arrowsize=0.7];
+
+       s [label="S"];
+       f [label="F"];
+       a [label="A"];
+       d [label="D"];
+       z [label="Z"];
+       b [label="B"];
+
+       s -> f [label="negotiate"];
+       f -> a [label="descriptor"];
+       a -> d [label="attributes"];
+       d -> d [label="more data"];
+       d -> z [label="complete"];
+       z -> b [label="finish"];
+   }
+
+``S`` negotiates transfer capabilities, ``F`` carries the endpoint descriptor,
+``A`` announces attributes, one or more ``D`` packets carry data, ``Z`` ends
+the file, and ``B`` ends the transaction. See :term:`transaction ladder` and
+:term:`block check` for concise definitions.
 
 Transport setup
 ---------------

@@ -25,7 +25,7 @@ autosectionlabel_prefix_document = True
 copybutton_exclude = '.linenos, .gp'
 hoverxref_auto_ref = True
 hoverxref_roles = ['term']
-hoverxref_role_types = {'term': 'tooltip'}
+hoverxref_role_types = {'ref': 'tooltip', 'term': 'tooltip'}
 
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 

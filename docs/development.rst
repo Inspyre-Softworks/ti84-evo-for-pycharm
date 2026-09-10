@@ -1,67 +1,176 @@
 Development
 ===========
 
-Local checks
-------------
+The plugin and companion CLI are implemented in Kotlin and built with the
+included Gradle wrapper. Protocol-facing changes should be covered by host-side
+tests and then accepted separately on physical hardware.
 
-Use the included Gradle 9.6.0 wrapper with Java 25. Set ``JAVA_HOME`` only if
-JDK 25 is not already selected:
+Development environment
+-----------------------
 
-.. code-block:: powershell
+Install JDK 25. The Gradle 9.6.0 wrapper downloads the configured PyCharm
+2026.2.1 development sandbox, so a separate Gradle or PyCharm installation is
+not required.
 
-   $env:JAVA_HOME = "C:\path\to\jdk-25"
-   .\gradlew.bat test --no-daemon
-   .\gradlew.bat buildPlugin --no-daemon
+The main source areas are:
 
-On macOS/Linux, use ``./gradlew`` in place of ``.\gradlew.bat``.
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
 
-The same test and packaging checks run in GitHub Actions for pull requests and
-pushes to ``main`` or ``master``. Both the plugin and companion CLI ZIPs are
-uploaded as workflow artifacts.
+   * - Path
+     - Purpose
+   * - ``src/main/kotlin``
+     - Plugin UI, services, project synchronization, transport, and protocol
+   * - ``src/main/resources``
+     - Plugin metadata, icons, and TI Python type stubs
+   * - ``src/cli``
+     - Standalone Kotlin CLI and PowerShell launcher
+   * - ``src/test/kotlin``
+     - Host-side unit and integration-style protocol tests
+   * - ``docs`` and ``scripts``
+     - Sphinx sources and cross-platform documentation helpers
 
-Documentation checks
---------------------
+Local workflow
+--------------
 
-The documentation build scripts check for Python and Graphviz, install missing
-dependencies, create an isolated ``.venv-docs`` environment, and produce a
-clean local build with warnings treated as errors.
+.. graphviz::
+   :align: center
 
-On Windows:
+   digraph dev_flow {
+       rankdir=LR;
+       graph [bgcolor="transparent", pad=0.15, nodesep=0.28, ranksep=0.4];
+       node [shape=box, style="rounded,filled", fillcolor="#f3fbf5",
+             color="#269745", fontcolor="#173b22", fontname="Arial",
+             fontsize=10, margin="0.16,0.10"];
+       edge [color="#52605a", fontcolor="#365141", fontname="Arial",
+             fontsize=9, arrowsize=0.7];
 
-.. code-block:: powershell
+       edit [label="Edit"];
+       test [label="test"];
+       run [label="runIde"];
+       package [label="buildPlugin +\ncliDistZip"];
+       hardware [label="Physical calculator\nacceptance", fillcolor="#f6f0fd", color="#a161f0"];
 
-   .\scripts\build_docs.ps1
+       edit -> test -> run -> package -> hardware;
+   }
 
-On macOS, Linux, and other Unix-like systems:
+Use the wrapper for your platform:
 
-.. code-block:: console
+.. tab-set::
 
-   sh scripts/build_docs.sh
+   .. tab-item:: Windows
 
-Pass ``-Open`` on Windows or ``--open`` on Unix to open the resulting
-``docs/_build/html/index.html`` in the default browser. The scripts reuse the
-environment on later runs and reinstall Python packages only when
-``docs/requirements.txt`` changes or the environment fails its import check.
+      .. code-block:: powershell
 
-Release checklist
------------------
+         .\gradlew.bat test --no-daemon
+         .\gradlew.bat runIde
+         .\gradlew.bat buildPlugin cliDistZip --no-daemon
 
-1. Update the version in ``VERSION``.
+   .. tab-item:: macOS / Linux
+
+      .. code-block:: console
+
+         ./gradlew test --no-daemon
+         ./gradlew runIde
+         ./gradlew buildPlugin cliDistZip --no-daemon
+
+Set ``JAVA_HOME`` only if JDK 25 is not already selected. Generated
+distributions are written to ``build/distributions``.
+
+CI also runs plugin-configuration and binary-compatibility verification in
+addition to a clean test and package build.
+
+Documentation workflow
+----------------------
+
+The documentation helpers require Python 3.10 or newer and Graphviz. They can
+install missing dependencies, create an isolated ``.venv-docs`` environment,
+and produce a clean Sphinx build with warnings treated as errors.
+
+.. tab-set::
+
+   .. tab-item:: Windows
+
+      .. code-block:: powershell
+
+         .\scripts\build_docs.ps1
+         .\scripts\build_docs.ps1 -Open
+
+   .. tab-item:: macOS / Linux
+
+      .. code-block:: console
+
+         sh scripts/build_docs.sh
+         sh scripts/build_docs.sh --open
+
+The generated site starts at ``docs/_build/html/index.html``. Dependencies are
+reinstalled only when ``docs/requirements.txt`` changes or the environment
+fails its import check.
+
+Release workflow
+----------------
+
+.. graphviz::
+   :align: center
+
+   digraph release_flow {
+       rankdir=LR;
+       graph [bgcolor="transparent", pad=0.15, nodesep=0.28, ranksep=0.4];
+       node [shape=box, style="rounded,filled", fillcolor="#f3fbf5",
+             color="#269745", fontcolor="#173b22", fontname="Arial",
+             fontsize=10, margin="0.16,0.10"];
+       edge [color="#52605a", fontcolor="#365141", fontname="Arial",
+             fontsize=9, arrowsize=0.7];
+
+       version [label="Update VERSION"];
+       changelog [label="Add matching\nCHANGELOG section"];
+       verify [label="Test, package,\nand verify"];
+       push [label="Push to main"];
+       draft [label="Create/refresh draft\nGitHub release"];
+       market [label="Publish to\nMarketplace"];
+       release [label="Publish GitHub\nrelease"];
+
+       version -> changelog -> verify -> push -> draft -> market -> release;
+   }
+
+Release checklist:
+
+1. Update the semantic version in ``VERSION``.
 2. Add an exact ``## <version>`` section with release-note bullets to
    ``CHANGELOG.md``.
-3. Run the test, ``buildPlugin``, and ``cliDistZip`` tasks.
-4. Push the version change to ``main``. The release workflow verifies both
-   distributions, uploads them as workflow artifacts, publishes the plugin to
-   JetBrains Marketplace, and publishes a same-version GitHub Release with both
-   ZIPs attached. The matching changelog section becomes both the GitHub release
-   description and the plugin ``change-notes`` shown under **What's New**.
+3. Run ``test``, ``buildPlugin``, ``cliDistZip``,
+   ``verifyPluginProjectConfiguration``, and ``verifyPlugin``.
+4. Push the release commit to ``main``.
 
-The repository must define a ``PUBLISH_TOKEN`` Actions secret containing a
-JetBrains Marketplace permanent token. ``CERTIFICATE_CHAIN``, ``PRIVATE_KEY``,
-and ``PRIVATE_KEY_PASSWORD`` may also be supplied to sign the plugin before
-publication. JetBrains requires the first Marketplace listing to be created
-manually before Gradle can upload later versions.
+The release workflow also resumes a missing or draft release for the current
+version. It validates both distributions, creates or refreshes a draft GitHub
+release, publishes the plugin to JetBrains Marketplace, and then publishes the
+GitHub release with both ZIPs. A hyphenated version is marked as a prerelease.
+The matching changelog section supplies both the GitHub release notes and the
+plugin **What's New** notes.
 
-Read the Docs uses ``.readthedocs.yaml`` and ``docs/conf.py`` to build
-``docs/index.rst`` and treats warnings as errors. A physical TI-84 Evo transfer
-must be verified separately with the intended calculator and USB setup.
+Repository configuration
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``PUBLISH_TOKEN`` must contain a JetBrains Marketplace permanent token.
+``CERTIFICATE_CHAIN``, ``PRIVATE_KEY``, and ``PRIVATE_KEY_PASSWORD`` are
+optional signing secrets. JetBrains requires the first Marketplace listing to
+be created manually before Gradle can upload later versions.
+
+Read the Docs uses ``.readthedocs.yaml`` and ``docs/conf.py`` and treats Sphinx
+warnings as errors.
+
+.. _hardware-status:
+
+Hardware acceptance
+-------------------
+
+Host-side tests validate codecs, payloads, state handling, and transaction
+logic, but they cannot prove USB timing or calculator firmware behavior.
+
+Single-file Python upload and read-only directory browsing have been tested on
+a physical TI-84 Evo. Multi-file push, project pull, Archive moves, variable
+editing, deletion, and image transfer still need broader acceptance across
+devices and host configurations. Keep backups and record the calculator
+software version during hardware tests.
