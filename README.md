@@ -37,6 +37,7 @@ TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, m
 | Use PowerShell or Windows Explorer | [Companion CLI](docs/cli.rst) |
 | Fix detection, timeout, conflict, or conversion problems | [Troubleshooting](docs/troubleshooting.rst) |
 | Understand or contribute to the implementation | [Protocol overview](docs/protocol.rst) · [Development](docs/development.rst) |
+| Enable developer-only Marketplace diagnostics | [Marauders Lock](docs/marauders-lock.rst) |
 
 ## Requirements
 

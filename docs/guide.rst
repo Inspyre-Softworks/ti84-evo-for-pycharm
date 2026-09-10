@@ -114,6 +114,8 @@ TI-84 Evo** for the explanation.
 The About window can retry an unavailable Marketplace check and copy sanitized
 Markdown debug information. The check interval is available under **Transfer
 settings**; the normal minimum is 60 seconds and the default is one hour.
+Plugin developers who need expanded validation controls can use
+:doc:`marauders-lock`.
 
 Where to go next
 ----------------

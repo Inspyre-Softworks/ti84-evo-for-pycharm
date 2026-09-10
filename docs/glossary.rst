@@ -12,7 +12,8 @@ Glossary table of contents
 **D–F** — :term:`D frame`, :term:`dynamic resource`, :term:`endpoint`,
 :term:`extended frame`, :term:`frame`, :term:`framebuffer`
 
-**H–P** — :term:`hh01`, :term:`Kermit`, :term:`long packet`, :term:`PID`
+**H–P** — :term:`hh01`, :term:`Kermit`, :term:`long packet`,
+:term:`Marauders Lock`, :term:`PID`
 
 **R** — :term:`RAM`, :term:`repeat encoding`, :term:`resource`, :term:`RGB565`
 
@@ -102,6 +103,11 @@ Glossary table of contents
    long packet
       Kermit's extended packet form. It carries a larger data area than a
       normal packet and uses a two-character base-95 length field.
+
+   Marauders Lock
+      The user-home ``mm.lock`` file that enables the plugin's developer-only
+      Mischief Mode when it contains the exact activation phrase. See
+      :doc:`marauders-lock` for its controls and lifecycle.
 
    PID
       USB product identifier. The plugin recognizes the TI-84 Evo product ID
