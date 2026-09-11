@@ -11,6 +11,31 @@ div.graphviz img {
     border-radius: 0.35rem;
 }
 
+/* Keep product screenshots legible and visually separate from surrounding text. */
+figure > a.docs-screenshot {
+    display: block;
+    margin-top: 1.5rem;
+}
+
+img.docs-screenshot {
+    box-sizing: border-box;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--color-background-border);
+    border-radius: 0.65rem;
+    background: var(--color-background-secondary);
+    box-shadow: 0 0.5rem 1.4rem rgba(0, 0, 0, 0.16);
+}
+
+figure > a.docs-screenshot + figcaption {
+    max-width: 42rem;
+    margin: 0.65rem auto 0;
+    padding-bottom: 1.1rem;
+    color: var(--color-foreground-secondary);
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+
 /* Make hoverxref cards inherit Furo's active light, dark, or auto theme. */
 .hxr-hoverxref {
     border-color: var(--color-foreground-border);

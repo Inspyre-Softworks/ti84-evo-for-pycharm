@@ -59,6 +59,15 @@ Connect and verify
 3. Select **Refresh devices**. Exactly one TI-84 Evo must be connected.
 4. Select **Read attributes**.
 
+.. figure:: _static/screenshots/connected-tool-window.png
+   :alt: TI-84 Evo tool window connected to a calculator and showing a captured screen
+   :align: center
+   :width: 450px
+   :class: docs-screenshot
+
+   A connected calculator after a successful screen capture. The status line
+   confirms both the connection and the captured framebuffer dimensions.
+
 The attributes dialog groups the calculator details into readable categories.
 **Copy Attributes** places a Markdown report on the clipboard, including the
 original protocol keys for diagnostics.
@@ -116,6 +125,16 @@ Markdown debug information. The check interval is available under **Transfer
 settings**; the normal minimum is 60 seconds and the default is one hour.
 Plugin developers who need expanded validation controls can use
 :doc:`marauders-lock`.
+
+.. figure:: _static/screenshots/about-version-status.png
+   :alt: About TI-84 Evo dialog showing plugin version and Marketplace verification status
+   :align: center
+   :width: 620px
+   :class: docs-screenshot
+
+   **About TI-84 Evo** keeps the installed version, Marketplace comparison,
+   and diagnostic actions in one place. This capture shows a development
+   build; release-build status text will differ.
 
 Where to go next
 ----------------

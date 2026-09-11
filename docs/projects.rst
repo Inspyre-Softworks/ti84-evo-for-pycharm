@@ -11,6 +11,15 @@ Configure a project
 Choose **Configure project** to add or remove Python files, set calculator
 names, choose storage targets, and arrange the entries.
 
+.. figure:: _static/screenshots/project-configuration.png
+   :alt: Project Configuration dialog for mapping Python files to calculator names and storage locations
+   :align: center
+   :width: 700px
+   :class: docs-screenshot
+
+   Each row maps one local Python file to a calculator program name and a RAM
+   or Archive destination.
+
 .. code-block:: properties
 
    @always-push-all=false

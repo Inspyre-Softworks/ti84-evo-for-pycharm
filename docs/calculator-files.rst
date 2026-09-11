@@ -9,6 +9,15 @@ The table refreshes when you open or click its tab and after successful
 variable, picture, Python, project, or Archive uploads. Existing selections are
 preserved when the same calculator entries are still present.
 
+.. figure:: _static/screenshots/calculator-file-browser.png
+   :alt: Calculator Files tab listing calculator variables with their type size and location
+   :align: center
+   :width: 450px
+   :class: docs-screenshot
+
+   The file browser presents calculator variables in a sortable table. This
+   read-only capture shows common numbers, images, and lists in RAM or Archive.
+
 Choose an operation
 -------------------
 
@@ -100,6 +109,15 @@ to uppercase.
 Use **Transfer settings** to control dimension reduction, maximum width and
 height, and palette size. The plugin preserves the aspect ratio. These settings
 are stored in PyCharm's user configuration and apply to every project.
+
+.. figure:: _static/screenshots/transfer-settings.png
+   :alt: Transfer Settings dialog with image conversion dimensions palette size and update interval
+   :align: center
+   :width: 520px
+   :class: docs-screenshot
+
+   Image limits apply during conversion; the Marketplace interval controls
+   background version checks. The values shown here are examples.
 
 Capture the screen
 ------------------
