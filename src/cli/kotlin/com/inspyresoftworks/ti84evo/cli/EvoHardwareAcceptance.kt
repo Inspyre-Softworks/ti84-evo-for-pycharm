@@ -52,6 +52,7 @@ internal object EvoHardwareAcceptance {
         var baseline = emptyList<EvoDirectoryEntry>()
         var numberName: String? = null
         var matrixName: String? = null
+        var setupFailure: Throwable? = null
         try {
             val (description, attributes, directory) = connected { transport ->
                 val link = EvoLink(transport)
@@ -60,6 +61,8 @@ internal object EvoHardwareAcceptance {
             baseline = directory
             numberName = firstFreeName(('A'..'Z').map(Char::toString), 0, baseline)
             matrixName = firstFreeName(('A'..'J').map(Char::toString), 6, baseline)
+            val requiredNumberName = checkNotNull(numberName)
+            val requiredMatrixName = checkNotNull(matrixName)
             val reserved = setOf(MAIN_PROGRAM, LIB_PROGRAM, UTIL_PROGRAM, LIST_NAME, IMAGE_NAME)
             require(baseline.none { it.name.uppercase() in reserved }) {
                 "Calculator already contains an HA42 acceptance variable; remove it or choose a clean device"
@@ -75,7 +78,7 @@ internal object EvoHardwareAcceptance {
             }
             step(outcomes, "Number edit, Archive move, and deletion") {
                 testEditableVariable(
-                    EvoVariablePayload.EditableValue(EvoVariablePayload.Kind.NUMBER, numberName, "42.5"),
+                    EvoVariablePayload.EditableValue(EvoVariablePayload.Kind.NUMBER, requiredNumberName, "42.5"),
                     "-4.25",
                 )
             }
@@ -87,7 +90,7 @@ internal object EvoHardwareAcceptance {
             }
             step(outcomes, "Matrix edit, Archive move, and deletion") {
                 testEditableVariable(
-                    EvoVariablePayload.EditableValue(EvoVariablePayload.Kind.MATRIX, matrixName, "[1,2]\n[3,4]"),
+                    EvoVariablePayload.EditableValue(EvoVariablePayload.Kind.MATRIX, requiredMatrixName, "[1,2]\n[3,4]"),
                     "[8,6]\n[7,5]\n[3,0]",
                 )
             }
@@ -97,16 +100,24 @@ internal object EvoHardwareAcceptance {
             step(outcomes, "Two full-resolution screenshot captures") {
                 testScreenshots(outputDirectory)
             }
+        } catch (error: Throwable) {
+            setupFailure = error
         } finally {
+            setupFailure?.let { error ->
+                outcomes += Outcome(
+                    workflow = "Initial setup and acceptance workflows",
+                    passed = false,
+                    detail = (error.message ?: error.javaClass.simpleName).replace('|', '/').replace('\n', ' '),
+                    elapsedMillis = 0,
+                )
+            }
             step(outcomes, "Acceptance-fixture cleanup") {
                 cleanupFixtures(baseline, numberName, matrixName)
             }
-            if (baseline.isNotEmpty()) {
-                step(outcomes, "Post-run directory matches pre-run identities and locations") {
-                    val after = readDirectory()
-                    check(directoryIdentity(after) == directoryIdentity(baseline)) {
-                        "Calculator directory identity/location set changed outside acceptance fixtures"
-                    }
+            step(outcomes, "Post-run directory matches pre-run identities and locations") {
+                val after = readDirectory()
+                check(directoryIdentity(after) == directoryIdentity(baseline)) {
+                    "Calculator directory identity/location set changed outside acceptance fixtures"
                 }
             }
             Files.writeString(
@@ -230,7 +241,8 @@ internal object EvoHardwareAcceptance {
             assertEditable(edited.copy(archived = true))
             deleteByNames(setOf(initial.name), identityType)
             check(readDirectory().none {
-                    it.type == identityType && it.name.equals(initial.name, ignoreCase = true)
+                    it.type == identityType &&
+                        canonicalName(it.name, identityType) == canonicalName(initial.name, identityType)
             }) { "${initial.name}:$identityType remained after deletion" }
         } finally {
             deleteByNames(setOf(initial.name), identityType)
@@ -286,7 +298,7 @@ internal object EvoHardwareAcceptance {
     private fun testScreenshots(outputDirectory: Path) {
         repeat(2) { index ->
             val capture = connected { EvoLink(it).getScreenCapture() }
-            check(capture.width > 0 && capture.height > 0 && capture.bitsPerPixel == 16) {
+            check(capture.width == 320 && capture.height == 240 && capture.bitsPerPixel == 16) {
                 "Unexpected screenshot format ${capture.width}x${capture.height}x${capture.bitsPerPixel}"
             }
             check(capture.framebuffer.size == capture.width * capture.height * 2) {
@@ -303,15 +315,14 @@ internal object EvoHardwareAcceptance {
         numberName: String?,
         matrixName: String?,
     ) {
-        if (baseline.isEmpty()) return
-        val baselineIdentities = baseline.mapTo(mutableSetOf()) { it.name.uppercase() to it.type }
+        val baselineIdentities = baseline.mapTo(mutableSetOf()) { canonicalName(it.name, it.type) to it.type }
         val removable = readDirectory().filter { entry ->
                 val acceptanceName = entry.name.uppercase() in setOf(
                     MAIN_PROGRAM, LIB_PROGRAM, UTIL_PROGRAM, LIST_NAME, IMAGE_NAME,
                 ) || (entry.type == 0 && entry.name.equals(numberName, true)) ||
                     (entry.type == 6 && matrixName != null &&
                         canonicalName(entry.name, entry.type) == canonicalName(matrixName, entry.type))
-                acceptanceName && (entry.name.uppercase() to entry.type) !in baselineIdentities
+                acceptanceName && (canonicalName(entry.name, entry.type) to entry.type) !in baselineIdentities
         }
         if (removable.isNotEmpty()) {
             connected { transport -> EvoLink(transport).deleteVariables(removable) }
@@ -320,7 +331,9 @@ internal object EvoHardwareAcceptance {
 
     private fun deleteByNames(names: Set<String>, type: Int? = null) {
         val matches = readDirectory().filter { entry ->
-                entry.name.uppercase() in names.map(String::uppercase) && (type == null || entry.type == type)
+                names.any { candidate ->
+                    canonicalName(entry.name, entry.type) == canonicalName(candidate, entry.type)
+                } && (type == null || entry.type == type)
         }
         if (matches.isNotEmpty()) {
             connected { transport -> EvoLink(transport).deleteVariables(matches) }
@@ -403,7 +416,7 @@ internal object EvoHardwareAcceptance {
         traceDirectory: Path,
         outcomes: List<Outcome>,
     ): String = buildString {
-        appendLine("# TI-84 Evo 0.4.2 hardware acceptance")
+        appendLine("# TI-84 Evo ${readVersion()} hardware acceptance")
         appendLine()
         appendLine("- Started: $started")
         appendLine("- Ended: $ended")
