@@ -1,6 +1,7 @@
 package com.inspyresoftworks.ti84evo.ui
 
 import com.intellij.icons.AllIcons
+import com.intellij.ide.actions.RevealFileAction
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -32,7 +33,6 @@ import com.inspyresoftworks.ti84evo.service.EvoMarketplaceService
 import com.inspyresoftworks.ti84evo.service.EvoMischiefMode
 import com.inspyresoftworks.ti84evo.settings.EvoApplicationSettings
 import java.awt.BorderLayout
-import java.awt.Desktop
 import java.awt.Dimension
 import java.awt.GridLayout
 import java.awt.Image
@@ -857,7 +857,10 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                         appendLine("Converted: ${upload.image.width}×${upload.image.height}, ${upload.image.colors} colors")
                         appendLine("Transfer payload: ${upload.transfer.payloadBytes} bytes")
                         appendLine("Kermit packets: ${upload.transfer.packets}")
-                        append("Target: ${if (archived) "Archive" else "RAM"}")
+                        append("Target: ${if (upload.transfer.archived) "Archive" else "RAM"}")
+                        if (!archived && upload.transfer.archived) {
+                            append(" (firmware rejected RAM and accepted Archive)")
+                        }
                     }
                     refreshDirectoryAfterOperation("Uploaded image ${upload.image.name}")
                 }.onFailure { showFailure(it) }
@@ -991,13 +994,32 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         }
         val configured = resolvedProject.programs
 
+        val includeSources = !resolvedProject.alwaysPushAll
         showStatus("Checking calculator project state…", StatusKind.WORKING)
-        output.text = "Comparing configured Python files with the calculator directory…"
-        service.readDirectory { result ->
+        output.text = if (includeSources) {
+            "Comparing configured Python files with the calculator directory…"
+        } else {
+            "Reading calculator directory before pushing all configured Python files…"
+        }
+        val programsToVerify = if (includeSources) {
+            configured.map { EvoPythonTransfer.Program(it.entry.programName, it.source, it.entry.archived) }
+        } else {
+            emptyList()
+        }
+        service.readPythonProjectState(
+            programsToVerify,
+            includeSources = includeSources,
+        ) { result ->
             onEdt {
-                result.onSuccess { calculatorDirectory ->
-                    replaceDirectoryEntries(calculatorDirectory)
-                    pushResolvedProject(root, resolvedProject, configured, calculatorDirectory)
+                result.onSuccess { calculatorState ->
+                    replaceDirectoryEntries(calculatorState.directory)
+                    pushResolvedProject(
+                        root,
+                        resolvedProject,
+                        configured,
+                        calculatorState.directory,
+                        calculatorState.sources,
+                    )
                 }.onFailure { showFailure(it) }
             }
         }
@@ -1008,6 +1030,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         resolvedProject: ResolvedProject,
         configured: List<ResolvedProjectProgram>,
         calculatorDirectory: List<EvoDirectoryEntry>,
+        calculatorSources: Map<String, String>,
     ) {
         var pending = if (resolvedProject.alwaysPushAll) {
             configured
@@ -1016,6 +1039,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                 root,
                 configured.map { it.entry to it.source },
                 calculatorDirectory,
+                calculatorSources,
             )
             val pendingPaths = pendingPairs.mapTo(mutableSetOf()) { it.first.sourcePath }
             configured.filter { it.entry.sourcePath in pendingPaths }
@@ -1273,8 +1297,10 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
             require(directory != null && Files.isDirectory(directory)) {
                 "The installed plugin directory is unavailable."
             }
-            require(Desktop.isDesktopSupported()) { "The operating system file manager is unavailable." }
-            Desktop.getDesktop().open(directory.toFile())
+            require(RevealFileAction.isDirectoryOpenSupported()) {
+                "The operating system file manager is unavailable."
+            }
+            RevealFileAction.openDirectory(directory)
         }.onFailure {
             Messages.showErrorDialog(project, it.message ?: "Could not open the plugin directory.", "TI-84 Evo")
         }

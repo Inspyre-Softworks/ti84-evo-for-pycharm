@@ -35,15 +35,18 @@ Command map
        sync [label="Synchronize", fillcolor="#f6f0fd", color="#a161f0"];
        mutate [label="Manage variables", fillcolor="#fff4f2", color="#b14b3b"];
        shell [label="Explorer", fillcolor="#eef4fc", color="#477db3"];
+       safety [label="Hardware acceptance", fillcolor="#fff8e8", color="#a87818"];
        list [label="list-files"];
        send [label="send / pull"];
        vars [label="archive / delete"];
        menus [label="install-context-menu\nuninstall-context-menu"];
+       backup [label="backup /\nhardware-acceptance"];
 
        cli -> read -> list;
        cli -> sync -> send;
        cli -> mutate -> vars;
        cli -> shell -> menus;
+       cli -> safety -> backup;
    }
 
 Common commands
@@ -61,6 +64,7 @@ Common commands
    .\ti84-evo.ps1 archive MAIN:15
    .\ti84-evo.ps1 delete MAIN:15
    .\ti84-evo.ps1 delete L1:1
+   .\ti84-evo.ps1 backup .\captures\backup
 
 ``list-files`` is read-only and shows each variable's name, numeric type, size,
 and RAM/Archive location.
@@ -88,6 +92,15 @@ the numeric type when a name matches more than one calculator entry.
 for an intentional non-interactive operation; ``rm`` is an alias. Selecting
 ``L1`` through ``L6`` clears the values and retains the built-in List Editor
 slot rather than deleting it.
+
+Backup and hardware acceptance
+------------------------------
+
+``backup OUTPUT-DIRECTORY`` downloads every calculator variable in its native
+format and records hashes, the directory, and sanitized device attributes. It
+does not alter the calculator. ``hardware-acceptance`` is a developer command
+that requires the completed backup marker before it creates contained test
+variables. See :doc:`hardware-acceptance` before using it.
 
 Explorer context menus
 ----------------------

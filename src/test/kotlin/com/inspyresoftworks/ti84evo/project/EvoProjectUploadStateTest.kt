@@ -7,6 +7,34 @@ import kotlin.test.assertEquals
 
 class EvoProjectUploadStateTest {
     @Test
+    fun `calculator-side source edits are pending even when local fingerprint is current`() {
+        val root = Files.createTempDirectory("evo-project-state-remote")
+        val entry = EvoProjectManifest.Entry("main.py", "MAIN", archived = false)
+        val source = "print('local')\n"
+        EvoProjectUploadState.markUploaded(root, entry, source)
+        val directory = listOf(EvoDirectoryEntry("MAIN", 15, 100, false, byteArrayOf(1, 2)))
+
+        assertEquals(
+            listOf(entry to source),
+            EvoProjectUploadState.pending(
+                root,
+                listOf(entry to source),
+                directory,
+                mapOf("MAIN" to "print('calculator edit')\n"),
+            ),
+        )
+        assertEquals(
+            emptyList(),
+            EvoProjectUploadState.pending(
+                root,
+                listOf(entry to source),
+                directory,
+                mapOf("MAIN" to source),
+            ),
+        )
+    }
+
+    @Test
     fun `successful upload fingerprint skips only unchanged configuration`() {
         val root = Files.createTempDirectory("evo-upload-state-test")
         val ram = EvoProjectManifest.Entry("main.py", "MAIN")

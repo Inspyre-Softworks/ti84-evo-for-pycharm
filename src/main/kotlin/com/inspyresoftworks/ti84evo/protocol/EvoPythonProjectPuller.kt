@@ -4,7 +4,7 @@ import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.transport.EvoTransport
 
 /** Downloads every Python program from a calculator as editable UTF-8 source. */
-class EvoPythonProjectPuller(transport: EvoTransport) {
+class EvoPythonProjectPuller(private val transport: EvoTransport) {
     data class Program(
         val programName: String,
         val source: String,
@@ -41,7 +41,7 @@ class EvoPythonProjectPuller(transport: EvoTransport) {
         val completed = mutableListOf<Program>()
         for (entry in entries) {
             val program = try {
-                val decoded = EvoPythonPayload.decode(link.getVariable(entry))
+                val decoded = downloadWithRetry(entry)
                 if (!decoded.programName.equals(entry.name, ignoreCase = true)) {
                     throw EvoProtocolException(
                         "directory name ${entry.name} does not match payload name ${decoded.programName}",
@@ -63,7 +63,26 @@ class EvoPythonProjectPuller(transport: EvoTransport) {
         return Result(completed)
     }
 
+    private fun downloadWithRetry(entry: EvoDirectoryEntry): EvoPythonPayload.Decoded {
+        var lastFailure: RuntimeException? = null
+        repeat(READ_ATTEMPTS) { attempt ->
+            try {
+                transport.close()
+                transport.open()
+                return EvoPythonPayload.decode(link.getVariable(entry))
+            } catch (error: RuntimeException) {
+                lastFailure = error
+                if (attempt < READ_ATTEMPTS - 1) Thread.sleep(300L * (attempt + 1))
+            }
+        }
+        throw EvoProtocolException(
+            "could not download ${entry.name} after $READ_ATTEMPTS attempts: ${lastFailure?.message}",
+            lastFailure,
+        )
+    }
+
     private companion object {
         const val PYTHON_TYPE = 15
+        const val READ_ATTEMPTS = 3
     }
 }

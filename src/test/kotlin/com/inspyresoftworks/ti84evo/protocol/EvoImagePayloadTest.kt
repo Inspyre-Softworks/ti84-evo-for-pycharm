@@ -32,10 +32,15 @@ class EvoImagePayloadTest {
         val encodedSize = (data[0].toInt() and 0xFF) or ((data[1].toInt() and 0xFF) shl 8)
         assertEquals(data.size - 2, encodedSize)
         assertEquals("IM8C", data.copyOfRange(2, 6).decodeToString())
-        assertEquals(2, (data[6].toInt() and 0xFF) or ((data[7].toInt() and 0xFF) shl 8))
-        assertEquals(40, (data[8].toInt() and 0xFF) or ((data[9].toInt() and 0xFF) shl 8))
-        assertEquals(20, (data[10].toInt() and 0xFF) or ((data[11].toInt() and 0xFF) shl 8))
+        assertEquals(40, readUInt24Le(data, 6))
+        assertEquals(20, readUInt24Le(data, 9))
+        assertEquals(1, data[12].toInt() and 0xFF)
     }
+
+    private fun readUInt24Le(data: ByteArray, offset: Int): Int =
+        (data[offset].toInt() and 0xff) or
+            ((data[offset + 1].toInt() and 0xff) shl 8) or
+            ((data[offset + 2].toInt() and 0xff) shl 16)
 
     @Test
     fun `image transfer URL contains type name archive and overwrite policy`() {
