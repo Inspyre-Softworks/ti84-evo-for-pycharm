@@ -996,8 +996,13 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
 
         showStatus("Checking calculator project state…", StatusKind.WORKING)
         output.text = "Comparing configured Python files with the calculator directory…"
+        val programsToVerify = if (resolvedProject.alwaysPushAll) {
+            emptyList()
+        } else {
+            configured.map { EvoPythonTransfer.Program(it.entry.programName, it.source, it.entry.archived) }
+        }
         service.readPythonProjectState(
-            configured.map { EvoPythonTransfer.Program(it.entry.programName, it.source, it.entry.archived) },
+            programsToVerify,
         ) { result ->
             onEdt {
                 result.onSuccess { calculatorState ->

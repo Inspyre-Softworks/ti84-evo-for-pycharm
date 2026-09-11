@@ -62,10 +62,11 @@ class EvoVariableTransfer(transport: EvoTransport) {
             "{${EvoVariablePayload.normalizeValue(EvoVariablePayload.Kind.NUMBER, value.value)}}",
             archived = false,
         )
-        reconnect()
-        val temporaryUpload = uploadEditableDirect(temporaryValue)
+        var temporaryUploadPackets = 0
         var temporaryEntry: com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry? = null
         try {
+            reconnect()
+            temporaryUploadPackets = uploadEditableDirect(temporaryValue).packets
             reconnect()
             temporaryEntry = link.getDirectory().singleOrNull {
                 it.type == EvoVariablePayload.Kind.LIST.typeId && it.name.equals(temporaryName, ignoreCase = true)
@@ -115,7 +116,7 @@ class EvoVariableTransfer(transport: EvoTransport) {
             return Result(
                 description = "Number ${value.name.uppercase()}",
                 payloadBytes = nativeNumber.size,
-                packets = temporaryUpload.packets + packets,
+                packets = temporaryUploadPackets + packets,
                 archived = value.archived,
             )
         } finally {

@@ -67,7 +67,8 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
                     EvoSerialTransport.auto().use { transport ->
                         transport.open()
                         val directory = EvoLink(transport).getDirectory()
-                        val sources = EvoPythonProjectVerifier(transport).readSources(directory, programs)
+                        val sources = if (programs.isEmpty()) emptyMap() else
+                            EvoPythonProjectVerifier(transport).readSources(directory, programs)
                         PythonProjectState(directory, sources)
                     }
                 }
