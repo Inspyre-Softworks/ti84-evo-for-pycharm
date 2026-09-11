@@ -32,8 +32,25 @@ class EvoLink(private val transport: EvoTransport) {
         getResource("hh01/inf/res?name=directory&gotohome=1"),
     )
 
-    fun getVariable(entry: EvoDirectoryEntry): ByteArray =
-        getResource("hh01/xfr/${buildVariableResourceName(entry)}")
+    fun getVariable(entry: EvoDirectoryEntry): ByteArray {
+        var lastFailure: RuntimeException? = null
+        repeat(VARIABLE_READ_ATTEMPTS) { attempt ->
+            try {
+                return getResource("hh01/xfr/${buildVariableResourceName(entry)}")
+            } catch (error: RuntimeException) {
+                lastFailure = error
+                if (attempt < VARIABLE_READ_ATTEMPTS - 1) {
+                    Thread.sleep(300L * (attempt + 1))
+                    reconnect()
+                }
+            }
+        }
+        throw EvoProtocolException(
+            "could not download ${entry.name}:${entry.type} after $VARIABLE_READ_ATTEMPTS attempts: " +
+                lastFailure?.message,
+            lastFailure,
+        )
+    }
 
     fun deleteVariables(
         entries: List<EvoDirectoryEntry>,
@@ -208,6 +225,7 @@ class EvoLink(private val transport: EvoTransport) {
 
     private companion object {
         const val DELETE_ATTEMPTS = 2
+        const val VARIABLE_READ_ATTEMPTS = 3
     }
 }
 

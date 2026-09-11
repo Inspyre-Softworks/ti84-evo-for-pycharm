@@ -857,7 +857,10 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                         appendLine("Converted: ${upload.image.width}×${upload.image.height}, ${upload.image.colors} colors")
                         appendLine("Transfer payload: ${upload.transfer.payloadBytes} bytes")
                         appendLine("Kermit packets: ${upload.transfer.packets}")
-                        append("Target: ${if (archived) "Archive" else "RAM"}")
+                        append("Target: ${if (upload.transfer.archived) "Archive" else "RAM"}")
+                        if (!archived && upload.transfer.archived) {
+                            append(" (firmware rejected RAM and accepted Archive)")
+                        }
                     }
                     refreshDirectoryAfterOperation("Uploaded image ${upload.image.name}")
                 }.onFailure { showFailure(it) }
@@ -993,11 +996,19 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
 
         showStatus("Checking calculator project state…", StatusKind.WORKING)
         output.text = "Comparing configured Python files with the calculator directory…"
-        service.readDirectory { result ->
+        service.readPythonProjectState(
+            configured.map { EvoPythonTransfer.Program(it.entry.programName, it.source, it.entry.archived) },
+        ) { result ->
             onEdt {
-                result.onSuccess { calculatorDirectory ->
-                    replaceDirectoryEntries(calculatorDirectory)
-                    pushResolvedProject(root, resolvedProject, configured, calculatorDirectory)
+                result.onSuccess { calculatorState ->
+                    replaceDirectoryEntries(calculatorState.directory)
+                    pushResolvedProject(
+                        root,
+                        resolvedProject,
+                        configured,
+                        calculatorState.directory,
+                        calculatorState.sources,
+                    )
                 }.onFailure { showFailure(it) }
             }
         }
@@ -1008,6 +1019,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         resolvedProject: ResolvedProject,
         configured: List<ResolvedProjectProgram>,
         calculatorDirectory: List<EvoDirectoryEntry>,
+        calculatorSources: Map<String, String>,
     ) {
         var pending = if (resolvedProject.alwaysPushAll) {
             configured
@@ -1016,6 +1028,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                 root,
                 configured.map { it.entry to it.source },
                 calculatorDirectory,
+                calculatorSources,
             )
             val pendingPaths = pendingPairs.mapTo(mutableSetOf()) { it.first.sourcePath }
             configured.filter { it.entry.sourcePath in pendingPaths }

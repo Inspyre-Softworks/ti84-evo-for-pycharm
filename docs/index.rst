@@ -106,6 +106,7 @@ Project links
 
    protocol
    glossary
+   hardware-acceptance
 
 .. toctree::
    :maxdepth: 2

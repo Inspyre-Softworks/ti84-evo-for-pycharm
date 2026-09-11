@@ -7,6 +7,7 @@ import com.inspyresoftworks.ti84evo.protocol.EvoImagePayload
 import com.inspyresoftworks.ti84evo.protocol.EvoLink
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectPuller
+import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectVerifier
 import com.inspyresoftworks.ti84evo.protocol.EvoVariablePayload
 import com.inspyresoftworks.ti84evo.protocol.EvoVariableTransfer
 import com.inspyresoftworks.ti84evo.settings.EvoApplicationSettings
@@ -26,6 +27,10 @@ import javax.imageio.ImageIO
  */
 @Service(Service.Level.PROJECT)
 class EvoDeviceService(private val coroutineScope: CoroutineScope) {
+    data class PythonProjectState(
+        val directory: List<EvoDirectoryEntry>,
+        val sources: Map<String, String>,
+    )
     data class ImageUploadResult(
         val image: EvoImagePayload.Built,
         val transfer: EvoVariableTransfer.Result,
@@ -50,6 +55,25 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
 
     fun readDirectory(callback: (Result<List<EvoDirectoryEntry>>) -> Unit) {
         runLinkOperation({ it.getDirectory() }, callback)
+    }
+
+    fun readPythonProjectState(
+        programs: List<EvoPythonTransfer.Program>,
+        callback: (Result<PythonProjectState>) -> Unit,
+    ) {
+        coroutineScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    EvoSerialTransport.auto().use { transport ->
+                        transport.open()
+                        val directory = EvoLink(transport).getDirectory()
+                        val sources = EvoPythonProjectVerifier(transport).readSources(directory, programs)
+                        PythonProjectState(directory, sources)
+                    }
+                }
+            }
+            callback(result)
+        }
     }
 
     fun captureScreen(callback: (Result<EvoScreenCapture>) -> Unit) {
