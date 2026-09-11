@@ -195,14 +195,14 @@ class EvoVariableTransfer(transport: EvoTransport) {
         val payload = EvoVariableFile.addChecksum(image.bytes)
         var actualArchive = archived
         val packets = try {
-            sender.uploadPayload(EvoVariablePayload.transferUrl(archived), payload)
+            sender.uploadPayload(EvoImagePayload.transferUrl(image.name, archived), payload)
         } catch (error: RuntimeException) {
             if (archived || !isInvalidDataPayload(error)) throw error
             // Firmware 7.0 rejects type-8 Python image AppVars in RAM. Match the
             // calculator's storage constraint by retrying the native file in Archive.
             reconnect()
             actualArchive = true
-            sender.uploadPayload(EvoVariablePayload.transferUrl(archived = true), payload)
+            sender.uploadPayload(EvoImagePayload.transferUrl(image.name, archived = true), payload)
         }
         return Result("Image ${image.name}", payload.size, packets, actualArchive)
     }
