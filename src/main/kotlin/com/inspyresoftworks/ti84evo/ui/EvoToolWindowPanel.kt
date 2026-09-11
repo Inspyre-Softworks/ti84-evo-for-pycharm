@@ -1,6 +1,7 @@
 package com.inspyresoftworks.ti84evo.ui
 
 import com.intellij.icons.AllIcons
+import com.intellij.ide.actions.RevealFileAction
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -32,7 +33,6 @@ import com.inspyresoftworks.ti84evo.service.EvoMarketplaceService
 import com.inspyresoftworks.ti84evo.service.EvoMischiefMode
 import com.inspyresoftworks.ti84evo.settings.EvoApplicationSettings
 import java.awt.BorderLayout
-import java.awt.Desktop
 import java.awt.Dimension
 import java.awt.GridLayout
 import java.awt.Image
@@ -1286,8 +1286,10 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
             require(directory != null && Files.isDirectory(directory)) {
                 "The installed plugin directory is unavailable."
             }
-            require(Desktop.isDesktopSupported()) { "The operating system file manager is unavailable." }
-            Desktop.getDesktop().open(directory.toFile())
+            require(RevealFileAction.isDirectoryOpenSupported()) {
+                "The operating system file manager is unavailable."
+            }
+            RevealFileAction.openDirectory(directory)
         }.onFailure {
             Messages.showErrorDialog(project, it.message ?: "Could not open the plugin directory.", "TI-84 Evo")
         }
