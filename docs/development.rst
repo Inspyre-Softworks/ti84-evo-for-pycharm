@@ -169,8 +169,12 @@ Hardware acceptance
 Host-side tests validate codecs, payloads, state handling, and transaction
 logic, but they cannot prove USB timing or calculator firmware behavior.
 
-Single-file Python upload and read-only directory browsing have been tested on
-a physical TI-84 Evo. Multi-file push, project pull, Archive moves, variable
-editing, deletion, and image transfer still need broader acceptance across
-devices and host configurations. Keep backups and record the calculator
-software version during hardware tests.
+Release 0.4.2 passed the complete backup, mixed-target project round trip,
+calculator-side mutation recovery, editable-variable, Archive, image, and
+screenshot matrix on a physical TI-84 Evo running OS ``7.0.0.3996`` from a
+Windows 11 host. See :doc:`hardware-acceptance` for the sanitized configuration,
+results, firmware-specific behavior, evidence files, and repeatable commands.
+
+This remains evidence for one calculator and host configuration, not every
+firmware, platform, cable, or USB controller. Keep backups and record the
+calculator software version during future hardware tests.

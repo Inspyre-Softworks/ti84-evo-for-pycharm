@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.2
+
+- Add repeatable physical-calculator acceptance with complete preflight backup, packet traces, contained fixtures, post-run cleanup, and recorded firmware and host configuration.
+- Detect Python programs edited in place on the calculator before an incremental project push decides that a synchronized local file can be skipped.
+- Retry long-running calculator reads across fresh serial sessions, including complete native-variable backups and remote-source verification.
+- Upload editable numbers through a native scratch-list conversion, verify firmware 7.0's committed writes after misleading terminal errors, and retry transient scratch cleanup safely.
+- Correct IM8C headers and transfer converted type-8 Python images as checksummed native files, falling back to Archive when firmware 7.0 rejects RAM.
+- Report the actual image location after a firmware-forced Archive fallback and write restorable, checksummed native files in calculator backups.
+- Accept native matrix display names and the Evo's 320×240 framebuffer dimensions during round-trip verification.
+
 ## 0.4.1
 
 - Validate the installed plugin against JetBrains Marketplace at startup and on a configurable schedule, with retry controls and consistent unverified, outdated, or developmental version labels.

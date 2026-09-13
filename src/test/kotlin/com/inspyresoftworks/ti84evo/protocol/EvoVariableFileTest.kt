@@ -73,6 +73,28 @@ class EvoVariableFileTest {
         assertContentEquals(byteArrayOf(), cleared.data)
     }
 
+    @Test
+    fun `one-item native list can be converted to a named native number`() {
+        val scalar = byteArrayOf(0, 0, 0, 0, 0, 0, 0x50, 0x42, 1, 1, 0x63, 0)
+        val expression = byteArrayOf(0xE5.toByte(), 0) + scalar + byteArrayOf(0xD9.toByte(), 0, 0)
+        val list = cborMap(
+            "metaData" to cborMap("type" to cborUnsigned(1), "version" to cborUnsigned(1)),
+            "version" to cborUnsigned(1),
+            "len" to cborUnsigned(1),
+            "arraylen" to cborUnsigned(8),
+            "size" to cborUnsigned(expression.size),
+            "data" to cborBytes(expression),
+        )
+
+        val number = EvoVariableFile.inspect(EvoVariableFile.numberFromSingleItemList(list, "D"))
+
+        assertEquals(0L, number.metadata["type"])
+        assertContentEquals(byteArrayOf(0x03, 0xE8.toByte(), 0, 0), number.metadata["name"] as ByteArray)
+        assertEquals(6L, number.fields["arraylen"])
+        assertEquals(12L, number.fields["size"])
+        assertContentEquals(scalar, number.data)
+    }
+
     private fun cborMap(vararg entries: Pair<String, ByteArray>): ByteArray = concat(
         cborLength(5, entries.size),
         *entries.flatMap { (key, value) -> listOf(cborText(key), value) }.toTypedArray(),

@@ -10,7 +10,7 @@ Build TI Python projects in PyCharm and transfer them directly to a TI-84 Evo ov
 TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, managing calculator variables, capturing screenshots, and keeping multi-file projects in sync. It also provides editor completion and documentation for the calculator's built-in `ti_*` modules—without installing desktop replacements or adding helper files to your calculator.
 
 > [!IMPORTANT]
-> This is an alpha hardware-integration project. Single-file Python upload and read-only directory browsing have been tested on a physical TI-84 Evo. Other write and synchronization workflows still need broader device testing. Keep backups of important calculator data.
+> This is an alpha hardware-integration project. Release 0.4.2 passed the complete backup, mixed RAM/Archive project round trip, calculator-side mutation recovery, variable edit/move/delete, image, and screenshot matrix on one physical TI-84 Evo running OS 7.0.0.3996 from Windows 11. Other firmware and host configurations still need testing. Keep backups of important calculator data.
 
 ## Highlights
 
@@ -36,7 +36,7 @@ TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, m
 | Configure, push, or pull a multi-file project | [Multi-file projects](docs/projects.rst) |
 | Use PowerShell or Windows Explorer | [Companion CLI](docs/cli.rst) |
 | Fix detection, timeout, conflict, or conversion problems | [Troubleshooting](docs/troubleshooting.rst) |
-| Understand or contribute to the implementation | [Protocol overview](docs/protocol.rst) · [Development](docs/development.rst) |
+| Understand, reproduce hardware acceptance, or contribute | [Hardware acceptance](docs/hardware-acceptance.rst) · [Protocol overview](docs/protocol.rst) · [Development](docs/development.rst) |
 | Enable developer-only Marketplace diagnostics | [Marauders Lock](docs/marauders-lock.rst) |
 
 ## Requirements
@@ -165,7 +165,7 @@ The USB and transfer layers are implemented natively in Kotlin. Protocol behavio
 
 ## Project status
 
-The current focus is broad physical-device acceptance and dependable round-trip project workflows. Planned work includes variable renaming, editable TI-BASIC programs, and a PyCharm run configuration that can push and launch a selected project.
+The 0.4.2 hardware matrix is accepted on one calculator and Windows host. The next validation focus is broader firmware and host coverage. Planned work includes variable renaming, editable TI-BASIC programs, and a PyCharm run configuration that can push and launch a selected project.
 
 Automated tests and plugin packaging run in GitHub Actions, but successful CI cannot verify calculator firmware behavior, USB hardware, or every host configuration.
 

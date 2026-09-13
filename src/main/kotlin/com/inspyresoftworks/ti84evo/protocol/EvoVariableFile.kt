@@ -70,6 +70,47 @@ object EvoVariableFile {
         return encodeCbor(cleared)
     }
 
+    /** Converts a native one-item scratch list into a native real-number envelope. */
+    fun numberFromSingleItemList(raw: ByteArray, numberName: String): ByteArray {
+        val normalizedName = EvoVariablePayload.normalizeName(EvoVariablePayload.Kind.NUMBER, numberName)
+        val inspection = inspect(raw)
+        val listType = (inspection.metadata["type"] as? Number)?.toInt()
+        require(listType == LIST_TYPE) { "temporary scalar payload is not a native list" }
+        require((inspection.fields["len"] as? Number)?.toInt() == 1) {
+            "temporary scalar list must contain exactly one item"
+        }
+        val arrayLength = (inspection.fields["arraylen"] as? Number)?.toInt()
+            ?: throw EvoProtocolException("temporary scalar list has no expression length")
+        require(arrayLength >= 3 && inspection.data.size >= arrayLength * 2) {
+            "temporary scalar list expression is truncated"
+        }
+        val words = ByteArray(arrayLength * 2).also { inspection.data.copyInto(it, endIndex = it.size) }
+        require(readWord(words, 0) == LIST_START && readWord(words, arrayLength - 1) == LIST_END) {
+            "temporary scalar list has invalid expression markers"
+        }
+        val scalar = words.copyOfRange(2, words.size - 2)
+        val token = 0xE800 + (normalizedName.single() - 'A')
+        val tokenName = byteArrayOf(token.toByte(), (token ushr 8).toByte(), 0, 0)
+        val metadata = linkedMapOf<Any?, Any?>(
+            "type" to 0L,
+            "version" to 1L,
+            "flags" to 0L,
+            "name" to tokenName,
+        )
+        val number = linkedMapOf<Any?, Any?>(
+            "metaData" to metadata,
+            "version" to 1L,
+            "flags" to 0L,
+            "arraylen" to (scalar.size / 2).toLong(),
+            "size" to scalar.size.toLong(),
+            "data" to scalar,
+        )
+        return encodeCbor(number)
+    }
+
+    private fun readWord(bytes: ByteArray, index: Int): Int =
+        (bytes[index * 2].toInt() and 0xff) or ((bytes[index * 2 + 1].toInt() and 0xff) shl 8)
+
     private fun encodeCbor(value: Any?): ByteArray = ByteArrayOutputStream().apply {
         when (value) {
             null -> write(0xF6)
@@ -138,4 +179,6 @@ object EvoVariableFile {
     }
 
     private const val LIST_TYPE = 1
+    private const val LIST_START = 0x00E5
+    private const val LIST_END = 0x00D9
 }

@@ -42,6 +42,7 @@ class EvoVariablePayloadTest {
 
     @Test
     fun `editable names enforce calculator type rules`() {
+        assertEquals("A", EvoVariablePayload.normalizeName(EvoVariablePayload.Kind.MATRIX, "[A]"))
         assertEquals("L1", EvoVariablePayload.normalizeName(EvoVariablePayload.Kind.LIST, "L1"))
         assertEquals("SCORE", EvoVariablePayload.normalizeName(EvoVariablePayload.Kind.LIST, "score"))
         assertFailsWith<IllegalArgumentException> {

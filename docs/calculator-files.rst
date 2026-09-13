@@ -102,6 +102,11 @@ Choose **Upload picture** and select one of these inputs:
 Converted images become palette-based, run-length-compressed Evo Python image
 variables that can be opened with ``ti_image.load_image(name)``.
 
+On firmware 7.0, type-8 Python image variables cannot be retained in RAM. If a
+RAM image upload is rejected with that firmware's invalid-payload response,
+the plugin retries the native image file in Archive and reports its actual
+location.
+
 An image variable name must begin with a letter and contain one to eight
 uppercase letters, digits, or underscores. The dialog normalizes entered names
 to uppercase.

@@ -44,14 +44,32 @@ object EvoImagePayload {
     }
 
     fun build(source: BufferedImage, requestedName: String, settings: EvoApplicationSettings.State): Built {
+        return build(
+            source,
+            requestedName,
+            settings.optimizeImages,
+            settings.imageMaxWidth,
+            settings.imageMaxHeight,
+            settings.imageColors,
+        )
+    }
+
+    fun build(
+        source: BufferedImage,
+        requestedName: String,
+        optimizeImages: Boolean,
+        imageMaxWidth: Int = 320,
+        imageMaxHeight: Int = 210,
+        imageColors: Int = 64,
+    ): Built {
         require(source.width > 0 && source.height > 0) { "Image has no pixels" }
         val name = requestedName.trim().uppercase()
         require(isValidName(name)) { "Image variable name must begin with a letter and contain 1–8 letters, digits, or underscores" }
 
-        val maxWidth = if (settings.optimizeImages) settings.imageMaxWidth else 320
-        val maxHeight = if (settings.optimizeImages) settings.imageMaxHeight else 210
+        val maxWidth = if (optimizeImages) imageMaxWidth else 320
+        val maxHeight = if (optimizeImages) imageMaxHeight else 210
         var scale = minOf(1.0, maxWidth.toDouble() / source.width, maxHeight.toDouble() / source.height)
-        val maxColors = if (settings.optimizeImages) settings.imageColors else 256
+        val maxColors = if (optimizeImages) imageColors else 256
 
         repeat(12) {
             val width = (source.width * scale).roundToInt().coerceAtLeast(1)
@@ -74,7 +92,7 @@ object EvoImagePayload {
                     wrapAppVar(name, data),
                 )
             }
-            if (!settings.optimizeImages) {
+            if (!optimizeImages) {
                 error("Converted image exceeds the Evo image-size field; enable image optimization or choose a smaller image")
             }
             scale *= 0.9
@@ -127,12 +145,12 @@ object EvoImagePayload {
 
         val out = ByteArrayOutputStream().apply {
             write("IM8C".toByteArray(StandardCharsets.US_ASCII))
-            writeUInt16Le(2) // RLE encoding.
-            writeUInt16Le(image.width)
-            writeUInt16Le(image.height)
+            writeUInt24Le(image.width)
+            writeUInt24Le(image.height)
+            write(1) // Palette format version.
             write(if (transparent) 1 else 0)
             write(0) // Transparent palette index.
-            writeUInt16Le(palette.size)
+            write(if (palette.size == 256) 0 else palette.size)
             palette.forEach { writeUInt16Le(it) }
             write(encodeRle(indices))
         }.toByteArray()
@@ -285,5 +303,9 @@ object EvoImagePayload {
     }
     private fun ByteArrayOutputStream.writeUInt16Le(value: Int) {
         write(value and 0xFF); write((value shr 8) and 0xFF)
+    }
+
+    private fun ByteArrayOutputStream.writeUInt24Le(value: Int) {
+        write(value and 0xFF); write((value shr 8) and 0xFF); write((value shr 16) and 0xFF)
     }
 }

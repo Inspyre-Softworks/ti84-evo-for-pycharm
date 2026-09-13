@@ -90,9 +90,10 @@ program with the same name.
 .. important::
 
    Keep backups of important calculator data. This is an alpha
-   hardware-integration project. Single-file Python upload and read-only
-   directory browsing have been tested on a physical TI-84 Evo; other write
-   and synchronization workflows still need broader device testing.
+   hardware-integration project. Release 0.4.2 passed the complete project,
+   variable, image, and screenshot matrix on one physical TI-84 Evo and
+   Windows 11 host; other firmware and host configurations still need testing.
+   See :doc:`hardware-acceptance` for the accepted configuration.
 
 TI Python editor support
 ------------------------

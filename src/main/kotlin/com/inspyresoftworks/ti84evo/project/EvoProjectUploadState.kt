@@ -30,6 +30,7 @@ object EvoProjectUploadState {
         projectRoot: Path,
         programs: List<Pair<EvoProjectManifest.Entry, String>>,
         calculatorDirectory: Collection<EvoDirectoryEntry>? = null,
+        calculatorSources: Map<String, String>? = null,
     ): List<Pair<EvoProjectManifest.Entry, String>> {
         val state = load(projectRoot)
         return programs.filter { (entry, source) ->
@@ -38,7 +39,8 @@ object EvoProjectUploadState {
                     calculatorEntry.type == PYTHON_TYPE &&
                         calculatorEntry.name.equals(entry.programName, ignoreCase = true) &&
                         calculatorEntry.archived == entry.archived
-                } == true
+                } == true ||
+                calculatorSources?.get(entry.programName.uppercase())?.let { it != source } == true
         }
     }
 

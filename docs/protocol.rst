@@ -341,6 +341,11 @@ Desktop raster images are resized with their aspect ratio intact, quantized to
 a configurable palette, converted to RGB565, and encoded as run-length-compressed
 ``IM8C`` data inside a type-8 Evo AppVar envelope. The converter reduces the
 dimensions further when necessary to fit the format's 16-bit image-length field.
+The IM8C header stores 24-bit little-endian width and height, palette version,
+alpha metadata, an 8-bit palette count, RGB565 palette entries, and the RLE
+pixel stream. The complete Evo variable file receives its native checksum
+before upload. Firmware 7.0 rejects this variable class in RAM, so a rejected
+RAM transfer is retried in Archive.
 The settings live in PyCharm's user-level ``ti84-evo.xml`` rather than a project
 manifest. Native ``.8ci2``, ``.8ca2``, and ``.8xv2`` files bypass conversion.
 
@@ -348,3 +353,5 @@ The protocol code is independently implemented in Kotlin. The public
 `Evo-Programming/evo_usb_py implementation
 <https://github.com/Evo-Programming/evo_usb_py>`_ was used as a protocol
 reference during development and is not a runtime dependency.
+The public `TI-Planet img2calc IM8C encoder
+<https://github.com/TI-Planet/img2calc>`_ was used as the image-format reference.

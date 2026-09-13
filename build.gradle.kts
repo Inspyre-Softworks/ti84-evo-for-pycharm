@@ -115,6 +115,10 @@ val cliJar = tasks.register<Jar>("cliJar") {
         include("com/inspyresoftworks/ti84evo/protocol/**")
         include("com/inspyresoftworks/ti84evo/transport/**")
     }
+    from(layout.projectDirectory.file("VERSION")) {
+        into("META-INF")
+        rename { "ti84-evo-version.txt" }
+    }
     from(
         configurations.runtimeClasspath.get()
             .filter { it.name.startsWith("kotlin-stdlib") || it.name.startsWith("jSerialComm") }

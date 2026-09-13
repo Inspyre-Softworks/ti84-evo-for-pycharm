@@ -111,7 +111,7 @@ object EvoPythonPayload {
         if (
             declaredTotal != declaredSourceEnd ||
             trailerLength !in 1..MAX_NATIVE_TRAILER_BYTES ||
-            appVar.copyOfRange(sourceEnd, appVar.size).any { it != 0.toByte() }
+            appVar[sourceEnd] != 0.toByte()
         ) {
             throw EvoProtocolException("Python source length does not match downloaded payload")
         }

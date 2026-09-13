@@ -60,8 +60,9 @@ object EvoVariablePayload {
                 name
             }
             Kind.MATRIX -> {
-                require(name.length == 1 && name.single() in 'A'..'J') { "Matrix name must be A–J" }
-                name
+                val letter = name.removeSurrounding("[", "]")
+                require(letter.length == 1 && letter.single() in 'A'..'J') { "Matrix name must be A–J" }
+                letter
             }
         }
     }

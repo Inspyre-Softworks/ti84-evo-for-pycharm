@@ -24,7 +24,9 @@ class EvoVariableTransfer(transport: EvoTransport) {
     private val link = EvoLink(transport)
 
     fun uploadEditable(value: EvoVariablePayload.EditableValue): Result {
-        val result = if (value.kind == EvoVariablePayload.Kind.LIST) {
+        val result = if (value.kind == EvoVariablePayload.Kind.NUMBER) {
+            uploadNumberNatively(value, link.getDirectory().map { it.name })
+        } else if (value.kind == EvoVariablePayload.Kind.LIST) {
             val directory = link.getDirectory()
             val existing = directory.singleOrNull {
                 it.type == EvoVariablePayload.Kind.LIST.typeId && it.name.equals(value.name, ignoreCase = true)
@@ -47,6 +49,85 @@ class EvoVariableTransfer(transport: EvoTransport) {
             )
         }
         return result
+    }
+
+    private fun uploadNumberNatively(
+        value: EvoVariablePayload.EditableValue,
+        namesInUse: List<String>,
+    ): Result {
+        val temporaryName = temporaryListName(namesInUse)
+        val temporaryValue = EvoVariablePayload.EditableValue(
+            EvoVariablePayload.Kind.LIST,
+            temporaryName,
+            "{${EvoVariablePayload.normalizeValue(EvoVariablePayload.Kind.NUMBER, value.value)}}",
+            archived = false,
+        )
+        var temporaryUploadPackets = 0
+        var temporaryEntry: com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry? = null
+        try {
+            reconnect()
+            temporaryUploadPackets = uploadEditableDirect(temporaryValue).packets
+            reconnect()
+            temporaryEntry = link.getDirectory().singleOrNull {
+                it.type == EvoVariablePayload.Kind.LIST.typeId && it.name.equals(temporaryName, ignoreCase = true)
+            } ?: throw EvoProtocolException("temporary scalar list $temporaryName was not returned by the calculator")
+            reconnect()
+            val nativeNumber = EvoVariableFile.addChecksum(
+                EvoVariableFile.numberFromSingleItemList(link.getVariable(temporaryEntry), value.name),
+            )
+            deleteTemporaryList(temporaryEntry)
+            temporaryEntry = null
+            reconnect()
+            var packets = 0
+            var uploadFailure: RuntimeException? = null
+            try {
+                packets = sender.uploadPayload(EvoVariablePayload.transferUrl(value.archived), nativeNumber)
+            } catch (error: RuntimeException) {
+                // Firmware 7.0 can commit a native scalar and then return DP for the
+                // terminal B packet. Treat that as success only after reading the
+                // exact value and requested memory location back from the device.
+                uploadFailure = error
+            }
+            reconnect()
+            val committed = runCatching {
+                val entry = link.getDirectory().singleOrNull {
+                    it.type == EvoVariablePayload.Kind.NUMBER.typeId &&
+                        it.name.equals(value.name, ignoreCase = true) &&
+                        it.archived == value.archived
+                } ?: return@runCatching false
+                reconnect()
+                val decoded = EvoVariableDecoder.decode(
+                    link.getVariable(entry),
+                    entry.type,
+                    entry.name,
+                    entry.archived,
+                )
+                EvoVariablePayload.normalizeValue(value.kind, decoded.value) ==
+                    EvoVariablePayload.normalizeValue(value.kind, value.value)
+            }.getOrElse { verificationFailure ->
+                uploadFailure?.addSuppressed(verificationFailure)
+                false
+            }
+            if (!committed) {
+                throw uploadFailure ?: EvoProtocolException(
+                    "calculator did not retain number ${value.name} after upload",
+                )
+            }
+            return Result(
+                description = "Number ${value.name.uppercase()}",
+                payloadBytes = nativeNumber.size,
+                packets = temporaryUploadPackets + packets,
+                archived = value.archived,
+            )
+        } finally {
+            val cleanup = temporaryEntry ?: runCatching {
+                reconnect()
+                link.getDirectory().singleOrNull {
+                    it.type == EvoVariablePayload.Kind.LIST.typeId && it.name.equals(temporaryName, ignoreCase = true)
+                }
+            }.getOrNull()
+            cleanup?.let { runCatching { deleteTemporaryList(it) } }
+        }
     }
 
     private fun uploadEditableDirect(value: EvoVariablePayload.EditableValue): Result {
@@ -112,8 +193,19 @@ class EvoVariableTransfer(transport: EvoTransport) {
     }
 
     fun uploadImage(image: EvoImagePayload.Built, archived: Boolean): Result {
-        val packets = sender.uploadPayload(EvoImagePayload.transferUrl(image.name, archived), image.bytes)
-        return Result("Image ${image.name}", image.bytes.size, packets, archived)
+        val payload = EvoVariableFile.addChecksum(image.bytes)
+        var actualArchive = archived
+        val packets = try {
+            sender.uploadPayload(EvoImagePayload.transferUrl(image.name, archived), payload)
+        } catch (error: RuntimeException) {
+            if (archived || !isInvalidDataPayload(error)) throw error
+            // Firmware 7.0 rejects type-8 Python image AppVars in RAM. Match the
+            // calculator's storage constraint by retrying the native file in Archive.
+            reconnect()
+            actualArchive = true
+            sender.uploadPayload(EvoImagePayload.transferUrl(image.name, archived = true), payload)
+        }
+        return Result("Image ${image.name}", payload.size, packets, actualArchive)
     }
 
     fun uploadFile(fileName: String, bytes: ByteArray, archived: Boolean): Result {
@@ -175,13 +267,39 @@ class EvoVariableTransfer(transport: EvoTransport) {
     }
 
     private fun deleteTemporaryList(entry: com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry) {
-        link.deleteVariables(listOf(entry))
+        var lastFailure: Throwable? = null
+        repeat(3) { attempt ->
+            try {
+                link.deleteVariables(listOf(entry))
+            } catch (error: RuntimeException) {
+                lastFailure = error
+            }
+            val remains = runCatching {
+                reconnect()
+                link.getDirectory().any {
+                    it.type == entry.type &&
+                        (it.tokenName.contentEquals(entry.tokenName) || it.name.equals(entry.name, ignoreCase = true))
+                }
+            }.getOrElse { verificationFailure ->
+                lastFailure = verificationFailure
+                true
+            }
+            if (!remains) return
+            if (attempt < 2) Thread.sleep(300L * (attempt + 1))
+        }
+        throw EvoProtocolException(
+            "calculator still reports temporary list ${entry.name} after 3 delete attempts",
+            lastFailure,
+        )
     }
 
     private fun reconnect() {
         transport.close()
         transport.open()
     }
+
+    private fun isInvalidDataPayload(error: RuntimeException): Boolean =
+        error.message?.let { "DP" in it || "invalid data payload" in it.lowercase() } == true
 }
 
 internal fun isPersistentBuiltInListName(name: String): Boolean =
