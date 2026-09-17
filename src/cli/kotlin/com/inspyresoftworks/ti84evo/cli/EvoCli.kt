@@ -6,11 +6,11 @@ import com.inspyresoftworks.ti84evo.project.EvoProjectPull
 import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
 import com.inspyresoftworks.ti84evo.protocol.EvoLink
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectPuller
-import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectVerifier
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
 import com.inspyresoftworks.ti84evo.protocol.EvoVariableDeleteException
 import com.inspyresoftworks.ti84evo.protocol.EvoVariableTransfer
 import com.inspyresoftworks.ti84evo.protocol.isPersistentBuiltInList
+import com.inspyresoftworks.ti84evo.transport.EvoSerialTransport
 import java.nio.charset.StandardCharsets
 import java.io.PrintStream
 import java.nio.file.Files
@@ -34,8 +34,6 @@ object EvoCli {
                 "archive" -> archiveFiles(args.drop(1))
                 "delete", "rm" -> deleteFiles(args.drop(1))
                 "list-files", "list" -> listFiles()
-                "backup" -> backup(args.drop(1))
-                "hardware-acceptance" -> hardwareAcceptance(args.drop(1))
                 "install-context-menu" -> installContextMenu()
                 "uninstall-context-menu" -> uninstallContextMenu()
                 "help", "--help", "-h", null -> usage()
@@ -49,7 +47,7 @@ object EvoCli {
 
     private fun listFiles() {
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        val entries = CliTransport.auto().use { transport ->
+        val entries = EvoSerialTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
             EvoLink(transport).getDirectory()
@@ -70,28 +68,7 @@ object EvoCli {
         }
     }
 
-    private fun backup(arguments: List<String>) {
-        require(arguments.size <= 1) { "backup accepts at most one output directory" }
-        val output = arguments.singleOrNull()?.let { Paths.get(it) }
-            ?: Paths.get("ti84-evo-backup-${java.time.LocalDateTime.now().toString().replace(':', '-')}")
-        val destination = output.toAbsolutePath().normalize()
-        Terminal.info("BACKUP", "Downloading every calculator variable before hardware changes…")
-        val result = EvoCalculatorBackup.create(destination)
-        Terminal.success(
-            "Backed up ${result.variables} variable(s), ${formatBytes(result.bytes)}, to ${result.directory}",
-        )
-    }
-
-    private fun hardwareAcceptance(arguments: List<String>) {
-        require(arguments.size == 3 && arguments[1] == "--backup") {
-            "hardware-acceptance requires OUTPUT-DIRECTORY --backup BACKUP-DIRECTORY"
-        }
-        val output = Paths.get(arguments[0]).toAbsolutePath().normalize()
-        val backup = Paths.get(arguments[2]).toAbsolutePath().normalize()
-        EvoHardwareAcceptance.run(output, backup)
-    }
-
-    internal fun send(arguments: List<String>) {
+    private fun send(arguments: List<String>) {
         var force = false
         var targetOverride: Boolean? = null
         var projectRoot = Paths.get("").toAbsolutePath().normalize()
@@ -144,24 +121,14 @@ object EvoCli {
             entry.copy(archived = targetOverride ?: entry.archived) to Files.readString(path, StandardCharsets.UTF_8)
         }
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        CliTransport.auto().use { transport ->
+        EvoSerialTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
             val calculatorDirectory = EvoLink(transport).getDirectory()
-            val calculatorSources = if (force || configuration.alwaysPushAll) {
-                null
-            } else {
-                EvoPythonProjectVerifier(transport).readSources(
-                    calculatorDirectory,
-                    sources.map { (entry, source) ->
-                        EvoPythonTransfer.Program(entry.programName, source, entry.archived)
-                    },
-                )
-            }
             val pending = if (force || configuration.alwaysPushAll) {
                 sources
             } else {
-                EvoProjectUploadState.pending(projectRoot, sources, calculatorDirectory, calculatorSources)
+                EvoProjectUploadState.pending(projectRoot, sources, calculatorDirectory)
             }
             if (pending.isEmpty()) {
                 Terminal.header("PROJECT IS CURRENT", projectRoot.toString())
@@ -203,7 +170,7 @@ object EvoCli {
         }
     }
 
-    internal fun pull(arguments: List<String>) {
+    private fun pull(arguments: List<String>) {
         var overwrite = false
         var projectRoot = Paths.get("").toAbsolutePath().normalize()
         var index = 0
@@ -228,7 +195,7 @@ object EvoCli {
         }
 
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        val pulled = CliTransport.auto().use { transport ->
+        val pulled = EvoSerialTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
             EvoPythonProjectPuller(transport).pull { program, completed, total ->
@@ -262,7 +229,7 @@ object EvoCli {
     private fun archiveFiles(arguments: List<String>) {
         require(arguments.isNotEmpty()) { "archive requires one or more NAME or NAME:TYPE selectors" }
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        CliTransport.auto().use { transport ->
+        EvoSerialTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
             val directory = EvoLink(transport).getDirectory()
@@ -298,7 +265,7 @@ object EvoCli {
         require(selectors.none { it.startsWith("-") }) { "Unknown delete option: ${selectors.first { it.startsWith("-") }}" }
 
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        CliTransport.auto().use { transport ->
+        EvoSerialTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
             val link = EvoLink(transport)
@@ -440,8 +407,6 @@ object EvoCli {
               ti84-evo archive NAME[:TYPE] [NAME[:TYPE] ...]
               ti84-evo delete [--yes] NAME[:TYPE] [NAME[:TYPE] ...]
               ti84-evo list-files
-              ti84-evo backup [OUTPUT-DIRECTORY]
-              ti84-evo hardware-acceptance OUTPUT-DIRECTORY --backup BACKUP-DIRECTORY
               ti84-evo install-context-menu
               ti84-evo uninstall-context-menu
 

@@ -10,7 +10,7 @@ Build TI Python projects in PyCharm and transfer them directly to a TI-84 Evo ov
 TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, managing calculator variables, capturing screenshots, and keeping multi-file projects in sync. It also provides editor completion and documentation for the calculator's built-in `ti_*` modules—without installing desktop replacements or adding helper files to your calculator.
 
 > [!IMPORTANT]
-> This is an alpha hardware-integration project. Release 0.4.2 passed the complete backup, mixed RAM/Archive project round trip, calculator-side mutation recovery, variable edit/move/delete, image, and screenshot matrix on one physical TI-84 Evo running OS 7.0.0.3996 from Windows 11. Other firmware and host configurations still need testing. Keep backups of important calculator data.
+> This is an alpha hardware-integration project. Release 0.4.2 passed the complete backup, mixed RAM/Archive project round trip, calculator-side mutation recovery, variable edit/move/delete, image, and screenshot matrix on one physical TI-84 Evo running OS 7.0. Release 0.5.0 additionally validates OS 7.1 SmartPad HID and simultaneous read-only CDC/Kermit operation. Other firmware and host configurations still need testing. Keep backups of important calculator data.
 
 ## Highlights
 
@@ -26,6 +26,7 @@ TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, m
 - Read and copy detailed calculator information.
 - Get completion, parameter hints, quick documentation, and inspections for `ti_draw`, `ti_image`, `ti_system`, `ti_plotlib`, `ti_hub`, and `ti_rover`.
 - Use the companion PowerShell CLI and optional Windows Explorer context menus outside PyCharm.
+- Capture lossless calculator resources and investigate OS 7.1 SmartPad USB/HID behavior with separate, opt-in developer diagnostics.
 
 ## Find what you need
 
@@ -36,6 +37,7 @@ TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, m
 | Configure, push, or pull a multi-file project | [Multi-file projects](docs/projects.rst) |
 | Use PowerShell or Windows Explorer | [Companion CLI](docs/cli.rst) |
 | Fix detection, timeout, conflict, or conversion problems | [Troubleshooting](docs/troubleshooting.rst) |
+| Investigate OS 7.1 SmartPad/HID | [SmartPad protocol and diagnostics](docs/smartpad.rst) |
 | Understand, reproduce hardware acceptance, or contribute | [Hardware acceptance](docs/hardware-acceptance.rst) · [Protocol overview](docs/protocol.rst) · [Development](docs/development.rst) |
 | Enable developer-only Marketplace diagnostics | [Marauders Lock](docs/marauders-lock.rst) |
 
@@ -126,6 +128,7 @@ Each GitHub release includes a separate `ti84-evo-cli-<version>.zip` for Windows
 .\ti84-evo.ps1 pull --project .
 .\ti84-evo.ps1 archive MAIN:15
 .\ti84-evo.ps1 delete MAIN:15
+.\ti84-evo.ps1 diagnose-resources --output .\captures\resources --include-directory
 .\ti84-evo.ps1 install-context-menu
 ```
 
@@ -165,7 +168,12 @@ The USB and transfer layers are implemented natively in Kotlin. Protocol behavio
 
 ## Project status
 
-The 0.4.2 hardware matrix is accepted on one calculator and Windows host. The next validation focus is broader firmware and host coverage. Planned work includes variable renaming, editable TI-BASIC programs, and a PyCharm run configuration that can push and launch a selected project.
+Release 0.5.0 establishes the OS 7.1 SmartPad protocol and complete physical
+key map without enabling global key interception in the production plugin.
+The next SmartPad work is an explicitly opt-in monitor and IDE-action binding
+surface built on the new UI-independent decoder. Other planned work includes
+variable renaming, editable TI-BASIC programs, and a PyCharm run configuration
+that can push and launch a selected project.
 
 Automated tests and plugin packaging run in GitHub Actions, but successful CI cannot verify calculator firmware behavior, USB hardware, or every host configuration.
 
