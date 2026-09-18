@@ -324,29 +324,9 @@ object EvoCli {
             }
             index++
         }
-        var outputDirectory = checkNotNull(output) { "diagnose-resources requires --output DIRECTORY" }
-        if (outputDirectory.exists()) {
-            require(outputDirectory.isDirectory()) { "Diagnostic output is not a directory: $outputDirectory" }
-            Files.list(outputDirectory).use { stream ->
-                if (stream.findAny().isPresent) {
-                    val parent = outputDirectory.parent ?: Paths.get("").toAbsolutePath().normalize()
-                    val baseName = outputDirectory.fileName.toString()
-                    while (true) {
-                        val suffix = "diagnose-${Instant.now().toEpochMilli()}-${Random.nextInt(1000, 10000)}"
-                        val candidate = parent.resolve("$baseName-$suffix")
-                        try {
-                            Files.createDirectory(candidate)
-                            outputDirectory = candidate
-                            break
-                        } catch (_: FileAlreadyExistsException) {
-                            continue
-                        }
-                    }
-                }
-            }
-        } else {
-            Files.createDirectories(outputDirectory)
-        }
+        val outputDirectory = prepareDiagnosticOutputDirectory(
+            checkNotNull(output) { "diagnose-resources requires --output DIRECTORY" },
+        )
         val incompleteMarker = outputDirectory.resolve("INCOMPLETE.txt")
         val completeMarker = outputDirectory.resolve("COMPLETE.txt")
         Files.writeString(
@@ -395,12 +375,12 @@ object EvoCli {
                 Terminal.progress(resourceIndex + 1, resources.size, uri, "READ", raw.size)
             }
         }
+        Files.deleteIfExists(incompleteMarker)
         Files.writeString(
             completeMarker,
             "Captured ${resources.size} resources successfully.\n",
             StandardCharsets.UTF_8,
         )
-        Files.deleteIfExists(incompleteMarker)
         Terminal.success("Captured ${resources.size} resource(s) to $outputDirectory")
     }
 
@@ -584,6 +564,29 @@ object EvoCli {
         .joinToString("")
         .ifBlank { "resource" }
         .take(40)
+
+    private fun prepareDiagnosticOutputDirectory(requested: Path): Path {
+        if (!requested.exists()) {
+            Files.createDirectories(requested)
+            return requested
+        }
+        require(requested.isDirectory()) { "Diagnostic output is not a directory: $requested" }
+        Files.list(requested).use { stream ->
+            if (stream.findAny().isEmpty) return requested
+        }
+        val parent = requested.parent ?: Paths.get("").toAbsolutePath().normalize()
+        val baseName = requested.fileName.toString()
+        while (true) {
+            val suffix = "diagnose-${Instant.now().toEpochMilli()}-${Random.nextInt(1000, 10000)}"
+            val candidate = parent.resolve("$baseName-$suffix")
+            try {
+                Files.createDirectory(candidate)
+                return candidate
+            } catch (_: FileAlreadyExistsException) {
+                continue
+            }
+        }
+    }
 
     private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes)
