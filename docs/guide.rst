@@ -94,6 +94,8 @@ program with the same name.
    variable, image, and screenshot matrix on one physical TI-84 Evo and
    Windows 11 host; other firmware and host configurations still need testing.
    See :doc:`hardware-acceptance` for the accepted configuration.
+   Release 0.5.0 also documents OS 7.1 SmartPad USB/HID behavior, but does not
+   enable calculator keys as global IDE shortcuts; see :doc:`smartpad`.
 
 TI Python editor support
 ------------------------
