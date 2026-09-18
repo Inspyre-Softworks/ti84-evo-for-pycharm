@@ -322,8 +322,14 @@ object EvoCli {
             index++
         }
         val outputDirectory = checkNotNull(output) { "diagnose-resources requires --output DIRECTORY" }
-        require(!outputDirectory.exists()) { "Diagnostic output already exists: $outputDirectory" }
-        Files.createDirectories(outputDirectory)
+        if (outputDirectory.exists()) {
+            require(outputDirectory.isDirectory()) { "Diagnostic output is not a directory: $outputDirectory" }
+            Files.list(outputDirectory).use { stream ->
+                require(stream.findAny().isEmpty) { "Diagnostic output directory must be empty: $outputDirectory" }
+            }
+        } else {
+            Files.createDirectories(outputDirectory)
+        }
 
         val resources = linkedSetOf("sys/attributes", "hh01/inf/res?name=dynamicinfo")
         if (includeDirectory) resources += "hh01/inf/res?name=directory&gotohome=1"
