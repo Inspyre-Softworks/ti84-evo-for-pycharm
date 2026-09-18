@@ -4,6 +4,7 @@ import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
 import com.inspyresoftworks.ti84evo.project.EvoProjectPull
 import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
+import com.inspyresoftworks.ti84evo.protocol.EvoCborDiagnostic
 import com.inspyresoftworks.ti84evo.protocol.EvoLink
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectPuller
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
@@ -16,7 +17,10 @@ import java.io.PrintStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.security.MessageDigest
+import java.time.Instant
 import kotlin.io.path.extension
+import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
 import kotlin.io.path.isRegularFile
 import kotlin.system.exitProcess
@@ -34,6 +38,9 @@ object EvoCli {
                 "archive" -> archiveFiles(args.drop(1))
                 "delete", "rm" -> deleteFiles(args.drop(1))
                 "list-files", "list" -> listFiles()
+                "diagnose-resources" -> diagnoseResources(args.drop(1))
+                "backup" -> backup(args.drop(1))
+                "hardware-acceptance" -> hardwareAcceptance(args.drop(1))
                 "install-context-menu" -> installContextMenu()
                 "uninstall-context-menu" -> uninstallContextMenu()
                 "help", "--help", "-h", null -> usage()
@@ -68,7 +75,7 @@ object EvoCli {
         }
     }
 
-    private fun send(arguments: List<String>) {
+    internal fun send(arguments: List<String>) {
         var force = false
         var targetOverride: Boolean? = null
         var projectRoot = Paths.get("").toAbsolutePath().normalize()
@@ -170,7 +177,7 @@ object EvoCli {
         }
     }
 
-    private fun pull(arguments: List<String>) {
+    internal fun pull(arguments: List<String>) {
         var overwrite = false
         var projectRoot = Paths.get("").toAbsolutePath().normalize()
         var index = 0
@@ -256,6 +263,103 @@ object EvoCli {
             }
             Terminal.success("Archived ${pending.size} calculator variable(s).")
         }
+    }
+
+    private fun backup(arguments: List<String>) {
+        require(arguments.size == 1) { "backup requires OUTPUT-DIRECTORY" }
+        val outputDirectory = Paths.get(arguments.single()).toAbsolutePath().normalize()
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        val result = EvoCalculatorBackup.create(outputDirectory)
+        Terminal.success(
+            "Backup complete: ${result.variables} variable(s), ${formatBytes(result.bytes)} at ${result.directory}",
+        )
+    }
+
+    private fun hardwareAcceptance(arguments: List<String>) {
+        require(arguments.isNotEmpty()) { "hardware-acceptance requires OUTPUT-DIRECTORY" }
+        val outputDirectory = Paths.get(arguments.first()).toAbsolutePath().normalize()
+        var backupDirectory: Path? = null
+        var index = 1
+        while (index < arguments.size) {
+            when (arguments[index]) {
+                "--backup" -> {
+                    index++
+                    require(index < arguments.size) { "--backup requires a directory" }
+                    backupDirectory = Paths.get(arguments[index]).toAbsolutePath().normalize()
+                }
+                else -> error("Unknown hardware-acceptance option: ${arguments[index]}")
+            }
+            index++
+        }
+        EvoHardwareAcceptance.run(
+            outputDirectory = outputDirectory,
+            backupDirectory = checkNotNull(backupDirectory) { "hardware-acceptance requires --backup DIRECTORY" },
+        )
+    }
+
+    private fun diagnoseResources(arguments: List<String>) {
+        var output: Path? = null
+        var includeDirectory = false
+        var includeScreen = false
+        val explicitResources = mutableListOf<String>()
+        var index = 0
+        while (index < arguments.size) {
+            when (arguments[index]) {
+                "--output" -> {
+                    index++
+                    require(index < arguments.size) { "--output requires a directory" }
+                    output = Paths.get(arguments[index]).toAbsolutePath().normalize()
+                }
+                "--include-directory" -> includeDirectory = true
+                "--include-screen" -> includeScreen = true
+                "--resource" -> {
+                    index++
+                    require(index < arguments.size) { "--resource requires a URI" }
+                    explicitResources += arguments[index]
+                }
+                else -> error("Unknown diagnose-resources option: ${arguments[index]}")
+            }
+            index++
+        }
+        val outputDirectory = checkNotNull(output) { "diagnose-resources requires --output DIRECTORY" }
+        require(!outputDirectory.exists()) { "Diagnostic output already exists: $outputDirectory" }
+        Files.createDirectories(outputDirectory)
+
+        val resources = linkedSetOf("sys/attributes", "hh01/inf/res?name=dynamicinfo")
+        if (includeDirectory) resources += "hh01/inf/res?name=directory&gotohome=1"
+        if (includeScreen) resources += "sys/screen"
+        explicitResources.forEach { resources += it }
+
+        val manifest = mutableListOf<String>()
+        manifest += "index\turi\tbytes\tsha256\tcaptured_utc\tbase_name"
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        EvoSerialTransport.auto().use { transport ->
+            transport.open()
+            Terminal.success("Connected to ${transport.description}")
+            val link = EvoLink(transport)
+            resources.forEachIndexed { resourceIndex, uri ->
+                val raw = link.getResource(uri)
+                val baseName = "%03d_%s".format(resourceIndex + 1, safeResourceName(uri))
+                Files.write(outputDirectory.resolve("$baseName.cbor"), raw)
+                Files.writeString(
+                    outputDirectory.resolve("$baseName.txt"),
+                    EvoCborDiagnostic.decodeAndRender(raw) + "\n",
+                    StandardCharsets.UTF_8,
+                )
+                val captured = Instant.now().toString()
+                manifest += listOf(
+                    (resourceIndex + 1).toString(),
+                    uri,
+                    raw.size.toString(),
+                    sha256(raw),
+                    captured,
+                    baseName,
+                ).joinToString("\t")
+                Terminal.progress(resourceIndex + 1, resources.size, uri, "READ", raw.size)
+            }
+        }
+        Files.writeString(outputDirectory.resolve("manifest.tsv"), manifest.joinToString("\n") + "\n", StandardCharsets.UTF_8)
+        Terminal.success("Captured ${resources.size} resource(s) to $outputDirectory")
     }
 
     private fun deleteFiles(arguments: List<String>) {
@@ -407,6 +511,9 @@ object EvoCli {
               ti84-evo archive NAME[:TYPE] [NAME[:TYPE] ...]
               ti84-evo delete [--yes] NAME[:TYPE] [NAME[:TYPE] ...]
               ti84-evo list-files
+              ti84-evo diagnose-resources --output DIR [--include-directory] [--include-screen] [--resource URI ...]
+              ti84-evo backup OUTPUT-DIRECTORY
+              ti84-evo hardware-acceptance OUTPUT-DIRECTORY --backup DIRECTORY
               ti84-evo install-context-menu
               ti84-evo uninstall-context-menu
 
@@ -418,6 +525,16 @@ object EvoCli {
     private val IGNORED_DIRECTORIES = setOf(
         ".git", ".idea", ".venv", "venv", "__pycache__", "build", "dist", "node_modules",
     )
+
+    private fun safeResourceName(uri: String): String = uri
+        .map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
+        .joinToString("")
+        .ifBlank { "resource" }
+        .take(64)
+
+    private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(bytes)
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private fun formatBytes(bytes: Long): String = "$bytes B"
 

@@ -757,8 +757,31 @@ def find_tshark(explicit: str | None = None) -> str:
     raise SystemExit('tshark was not found. Install Wireshark with USBPcap or pass --tshark.')
 
 
+def _validated_tshark(tshark: str) -> str:
+    resolved = Path(tshark).resolve()
+    if not resolved.is_file():
+        raise SystemExit(f'tshark executable was not found: {resolved}')
+    if resolved.name.lower() not in {'tshark', 'tshark.exe'}:
+        raise SystemExit(f'Unexpected tshark executable name: {resolved.name}')
+    return str(resolved)
+
+
+def run_tshark(
+    tshark: str,
+    *arguments: str,
+    capture_output: bool = False,
+    text: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [_validated_tshark(tshark), *arguments],
+        check=True,
+        capture_output=capture_output,
+        text=text,
+    )
+
+
 def usbpcap_interfaces(tshark: str) -> list[str]:
-    result = subprocess.run([tshark, '-D'], check=True, capture_output=True, text=True)
+    result = run_tshark(tshark, '-D', capture_output=True, text=True)
     interfaces = []
     for line in result.stdout.splitlines():
         if 'USBPcap' not in line:
@@ -769,11 +792,11 @@ def usbpcap_interfaces(tshark: str) -> list[str]:
 
 
 def capture_with_tshark(tshark: str, interfaces: Iterable[str], seconds: float, output: Path) -> None:
-    command = [tshark]
+    command = []
     for interface in interfaces:
         command += ['-i', interface]
     command += ['-a', f'duration:{seconds}', '-w', str(output), '-q']
-    subprocess.run(command, check=True)
+    run_tshark(tshark, *command)
 
 
 def locate_usbpcap_device(tshark: str) -> tuple[str, int]:
@@ -784,11 +807,11 @@ def locate_usbpcap_device(tshark: str) -> tuple[str, int]:
         capture = Path(temp) / 'locate.pcapng'
         capture_with_tshark(tshark, interfaces, 1.0, capture)
         command = [
-            tshark, '-r', str(capture), '-Y',
+            '-r', str(capture), '-Y',
             f'usb.idVendor == 0x{TI_VENDOR_ID:04x} && usb.idProduct == 0x{EVO_PRODUCT_ID:04x}',
             '-T', 'fields', '-e', 'frame.interface_id', '-e', 'usb.device_address',
         ]
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        result = run_tshark(tshark, *command, capture_output=True, text=True)
         rows = [row.split('\t') for row in result.stdout.splitlines() if row.strip()]
         if not rows:
             raise SystemExit('TI-84 Evo was not present in injected USBPcap descriptors.')
@@ -798,10 +821,7 @@ def locate_usbpcap_device(tshark: str) -> tuple[str, int]:
 
 def sanitize_capture(tshark: str, source: Path, output: Path, address: int) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [tshark, '-r', str(source), '-Y', f'usb.device_address == {address}', '-w', str(output)],
-        check=True,
-    )
+    run_tshark(tshark, '-r', str(source), '-Y', f'usb.device_address == {address}', '-w', str(output))
 
 
 def decode_pcap(tshark: str, capture: Path, address: int | None, endpoint: int, output: Path | None) -> list[str]:
@@ -809,11 +829,11 @@ def decode_pcap(tshark: str, capture: Path, address: int | None, endpoint: int, 
     if address is not None:
         display_filter = f'usb.device_address == {address} && {display_filter}'
     command = [
-        tshark, '-r', str(capture), '-Y', display_filter, '-T', 'fields',
+        '-r', str(capture), '-Y', display_filter, '-T', 'fields',
         '-e', 'frame.time_epoch', '-e', 'usb.device_address', '-e', 'usb.data_len',
         '-e', 'usbhid.data', '-e', 'data.data', '-e', 'usb.capdata',
     ]
-    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    result = run_tshark(tshark, *command, capture_output=True, text=True)
     previous: set[ReportToken] = set()
     lines = []
     for row in result.stdout.splitlines():
