@@ -582,7 +582,7 @@ object EvoCli {
             if (stream.findAny().isEmpty) return requested
         }
         val parent = requested.parent ?: Paths.get("").toAbsolutePath().normalize()
-        val baseName = requested.fileName.toString()
+        val baseName = requested.fileName?.toString() ?: "diagnostics"
         while (true) {
             val suffix = "diagnose-${Instant.now().toEpochMilli()}-${Random.nextInt(1000, 10000)}"
             val candidate = parent.resolve("$baseName-$suffix")
