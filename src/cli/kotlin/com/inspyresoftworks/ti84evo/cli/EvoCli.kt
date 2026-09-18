@@ -4,6 +4,7 @@ import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
 import com.inspyresoftworks.ti84evo.project.EvoProjectPull
 import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
+import com.inspyresoftworks.ti84evo.protocol.EvoCborDiagnostic
 import com.inspyresoftworks.ti84evo.protocol.EvoLink
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectPuller
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
@@ -13,12 +14,18 @@ import com.inspyresoftworks.ti84evo.protocol.isPersistentBuiltInList
 import com.inspyresoftworks.ti84evo.transport.EvoSerialTransport
 import java.nio.charset.StandardCharsets
 import java.io.PrintStream
+import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.StandardOpenOption
+import java.security.MessageDigest
+import java.time.Instant
 import kotlin.io.path.extension
+import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
 import kotlin.io.path.isRegularFile
+import kotlin.random.Random
 import kotlin.system.exitProcess
 
 /** Standalone sender used by PowerShell and Windows Explorer context menus. */
@@ -34,6 +41,9 @@ object EvoCli {
                 "archive" -> archiveFiles(args.drop(1))
                 "delete", "rm" -> deleteFiles(args.drop(1))
                 "list-files", "list" -> listFiles()
+                "diagnose-resources" -> diagnoseResources(args.drop(1))
+                "backup" -> backup(args.drop(1))
+                "hardware-acceptance" -> hardwareAcceptance(args.drop(1))
                 "install-context-menu" -> installContextMenu()
                 "uninstall-context-menu" -> uninstallContextMenu()
                 "help", "--help", "-h", null -> usage()
@@ -121,7 +131,7 @@ object EvoCli {
             entry.copy(archived = targetOverride ?: entry.archived) to Files.readString(path, StandardCharsets.UTF_8)
         }
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        EvoSerialTransport.auto().use { transport ->
+        CliTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
             val calculatorDirectory = EvoLink(transport).getDirectory()
@@ -195,7 +205,7 @@ object EvoCli {
         }
 
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        val pulled = EvoSerialTransport.auto().use { transport ->
+        val pulled = CliTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
             EvoPythonProjectPuller(transport).pull { program, completed, total ->
@@ -255,6 +265,140 @@ object EvoCli {
                 )
             }
             Terminal.success("Archived ${pending.size} calculator variable(s).")
+        }
+    }
+
+    private fun backup(arguments: List<String>) {
+        require(arguments.size == 1) { "backup requires OUTPUT-DIRECTORY" }
+        val outputDirectory = Paths.get(arguments.single()).toAbsolutePath().normalize()
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        val result = EvoCalculatorBackup.create(outputDirectory)
+        Terminal.success(
+            "Backup complete: ${result.variables} variable(s), ${formatBytes(result.bytes)} at ${result.directory}",
+        )
+    }
+
+    private fun hardwareAcceptance(arguments: List<String>) {
+        require(arguments.isNotEmpty()) { "hardware-acceptance requires OUTPUT-DIRECTORY" }
+        val outputDirectory = Paths.get(arguments.first()).toAbsolutePath().normalize()
+        var backupDirectory: Path? = null
+        var index = 1
+        while (index < arguments.size) {
+            when (arguments[index]) {
+                "--backup" -> {
+                    index++
+                    require(index < arguments.size) { "--backup requires a directory" }
+                    backupDirectory = Paths.get(arguments[index]).toAbsolutePath().normalize()
+                }
+                else -> error("Unknown hardware-acceptance option: ${arguments[index]}")
+            }
+            index++
+        }
+        EvoHardwareAcceptance.run(
+            outputDirectory = outputDirectory,
+            backupDirectory = checkNotNull(backupDirectory) { "hardware-acceptance requires --backup DIRECTORY" },
+        )
+    }
+
+    private fun diagnoseResources(arguments: List<String>) {
+        var output: Path? = null
+        var includeDirectory = false
+        var includeScreen = false
+        val explicitResources = mutableListOf<String>()
+        var index = 0
+        while (index < arguments.size) {
+            when (arguments[index]) {
+                "--output" -> {
+                    index++
+                    require(index < arguments.size) { "--output requires a directory" }
+                    output = Paths.get(arguments[index]).toAbsolutePath().normalize()
+                }
+                "--include-directory" -> includeDirectory = true
+                "--include-screen" -> includeScreen = true
+                "--resource" -> {
+                    index++
+                    require(index < arguments.size) { "--resource requires a URI" }
+                    explicitResources += arguments[index]
+                }
+                else -> error("Unknown diagnose-resources option: ${arguments[index]}")
+            }
+            index++
+        }
+        val outputDirectory = prepareDiagnosticOutputDirectory(
+            checkNotNull(output) { "diagnose-resources requires --output DIRECTORY" },
+        )
+        val incompleteMarker = outputDirectory.resolve("INCOMPLETE.txt")
+        val completeMarker = outputDirectory.resolve("COMPLETE.txt")
+        Files.writeString(
+            incompleteMarker,
+            "Resource capture did not complete. COMPLETE.txt confirms a full capture.\n",
+            StandardCharsets.UTF_8,
+        )
+
+        val resources = linkedSetOf("sys/attributes", "hh01/inf/res?name=dynamicinfo")
+        if (includeDirectory) resources += "hh01/inf/res?name=directory&gotohome=1"
+        if (includeScreen) resources += "sys/screen"
+        explicitResources.forEach { resources += it }
+
+        val manifestPath = outputDirectory.resolve("manifest.tsv")
+        Files.writeString(manifestPath, "index\turi\tbytes\tsha256\tcaptured_utc\tbase_name\n", StandardCharsets.UTF_8)
+        var completed = false
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        try {
+            EvoSerialTransport.auto().use { transport ->
+                transport.open()
+                Terminal.success("Connected to ${transport.description}")
+                val link = EvoLink(transport)
+                resources.forEachIndexed { resourceIndex, uri ->
+                    val raw = link.getResource(uri)
+                    val uriHash = sha256(uri.toByteArray(StandardCharsets.UTF_8)).take(12)
+                    val baseName = "%03d_%s_%s".format(resourceIndex + 1, safeResourceName(uri), uriHash)
+                    Files.write(outputDirectory.resolve("$baseName.cbor"), raw)
+                    Files.writeString(
+                        outputDirectory.resolve("$baseName.txt"),
+                        EvoCborDiagnostic.decodeAndRender(raw) + "\n",
+                        StandardCharsets.UTF_8,
+                    )
+                    val captured = Instant.now().toString()
+                    val manifestLine = listOf(
+                        (resourceIndex + 1).toString(),
+                        uri.replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n"),
+                        raw.size.toString(),
+                        sha256(raw),
+                        captured,
+                        baseName,
+                    ).joinToString("\t")
+                    Files.writeString(
+                        manifestPath,
+                        "$manifestLine\n",
+                        StandardCharsets.UTF_8,
+                        StandardOpenOption.APPEND,
+                    )
+                    Terminal.progress(resourceIndex + 1, resources.size, uri, "READ", raw.size)
+                }
+            }
+            completed = true
+        } finally {
+            if (completed) {
+                Files.writeString(
+                    completeMarker,
+                    "Captured ${resources.size} resources successfully.\n",
+                    StandardCharsets.UTF_8,
+                )
+                runCatching { Files.deleteIfExists(incompleteMarker) }
+            }
+        }
+        Terminal.success("Captured ${resources.size} resource(s) to $outputDirectory")
+    }
+
+    internal fun runAutomationCommand(command: String, arguments: List<String>) {
+        when (command.lowercase()) {
+            "send" -> send(arguments)
+            "pull" -> pull(arguments)
+            "diagnose-resources" -> diagnoseResources(arguments)
+            "backup" -> backup(arguments)
+            "hardware-acceptance" -> hardwareAcceptance(arguments)
+            else -> error("Unsupported automation command: $command")
         }
     }
 
@@ -407,6 +551,9 @@ object EvoCli {
               ti84-evo archive NAME[:TYPE] [NAME[:TYPE] ...]
               ti84-evo delete [--yes] NAME[:TYPE] [NAME[:TYPE] ...]
               ti84-evo list-files
+              ti84-evo diagnose-resources --output DIR [--include-directory] [--include-screen] [--resource URI ...]
+              ti84-evo backup OUTPUT-DIRECTORY
+              ti84-evo hardware-acceptance OUTPUT-DIRECTORY --backup DIRECTORY
               ti84-evo install-context-menu
               ti84-evo uninstall-context-menu
 
@@ -418,6 +565,39 @@ object EvoCli {
     private val IGNORED_DIRECTORIES = setOf(
         ".git", ".idea", ".venv", "venv", "__pycache__", "build", "dist", "node_modules",
     )
+
+    private fun safeResourceName(uri: String): String = uri
+        .map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
+        .joinToString("")
+        .ifBlank { "resource" }
+        .take(40)
+
+    private fun prepareDiagnosticOutputDirectory(requested: Path): Path {
+        if (!requested.exists()) {
+            Files.createDirectories(requested)
+            return requested
+        }
+        require(requested.isDirectory()) { "Diagnostic output is not a directory: $requested" }
+        Files.list(requested).use { stream ->
+            if (stream.findAny().isEmpty) return requested
+        }
+        val parent = requested.parent ?: Paths.get("").toAbsolutePath().normalize()
+        val baseName = requested.fileName?.toString() ?: "diagnostics"
+        while (true) {
+            val suffix = "diagnose-${Instant.now().toEpochMilli()}-${Random.nextInt(1000, 10000)}"
+            val candidate = parent.resolve("$baseName-$suffix")
+            try {
+                Files.createDirectory(candidate)
+                return candidate
+            } catch (_: FileAlreadyExistsException) {
+                continue
+            }
+        }
+    }
+
+    private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
+        .digest(bytes)
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private fun formatBytes(bytes: Long): String = "$bytes B"
 
