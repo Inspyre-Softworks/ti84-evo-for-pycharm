@@ -342,45 +342,52 @@ object EvoCli {
 
         val manifestPath = outputDirectory.resolve("manifest.tsv")
         Files.writeString(manifestPath, "index\turi\tbytes\tsha256\tcaptured_utc\tbase_name\n", StandardCharsets.UTF_8)
+        var completed = false
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        EvoSerialTransport.auto().use { transport ->
-            transport.open()
-            Terminal.success("Connected to ${transport.description}")
-            val link = EvoLink(transport)
-            resources.forEachIndexed { resourceIndex, uri ->
-                val raw = link.getResource(uri)
-                val uriHash = sha256(uri.toByteArray(StandardCharsets.UTF_8)).take(12)
-                val baseName = "%03d_%s_%s".format(resourceIndex + 1, safeResourceName(uri), uriHash)
-                Files.write(outputDirectory.resolve("$baseName.cbor"), raw)
+        try {
+            EvoSerialTransport.auto().use { transport ->
+                transport.open()
+                Terminal.success("Connected to ${transport.description}")
+                val link = EvoLink(transport)
+                resources.forEachIndexed { resourceIndex, uri ->
+                    val raw = link.getResource(uri)
+                    val uriHash = sha256(uri.toByteArray(StandardCharsets.UTF_8)).take(12)
+                    val baseName = "%03d_%s_%s".format(resourceIndex + 1, safeResourceName(uri), uriHash)
+                    Files.write(outputDirectory.resolve("$baseName.cbor"), raw)
+                    Files.writeString(
+                        outputDirectory.resolve("$baseName.txt"),
+                        EvoCborDiagnostic.decodeAndRender(raw) + "\n",
+                        StandardCharsets.UTF_8,
+                    )
+                    val captured = Instant.now().toString()
+                    val manifestLine = listOf(
+                        (resourceIndex + 1).toString(),
+                        uri,
+                        raw.size.toString(),
+                        sha256(raw),
+                        captured,
+                        baseName,
+                    ).joinToString("\t")
+                    Files.writeString(
+                        manifestPath,
+                        "$manifestLine\n",
+                        StandardCharsets.UTF_8,
+                        StandardOpenOption.APPEND,
+                    )
+                    Terminal.progress(resourceIndex + 1, resources.size, uri, "READ", raw.size)
+                }
+            }
+            completed = true
+        } finally {
+            if (completed) {
                 Files.writeString(
-                    outputDirectory.resolve("$baseName.txt"),
-                    EvoCborDiagnostic.decodeAndRender(raw) + "\n",
+                    completeMarker,
+                    "Captured ${resources.size} resources successfully.\n",
                     StandardCharsets.UTF_8,
                 )
-                val captured = Instant.now().toString()
-                val manifestLine = listOf(
-                    (resourceIndex + 1).toString(),
-                    uri,
-                    raw.size.toString(),
-                    sha256(raw),
-                    captured,
-                    baseName,
-                ).joinToString("\t")
-                Files.writeString(
-                    manifestPath,
-                    "$manifestLine\n",
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.APPEND,
-                )
-                Terminal.progress(resourceIndex + 1, resources.size, uri, "READ", raw.size)
+                runCatching { Files.deleteIfExists(incompleteMarker) }
             }
         }
-        Files.deleteIfExists(incompleteMarker)
-        Files.writeString(
-            completeMarker,
-            "Captured ${resources.size} resources successfully.\n",
-            StandardCharsets.UTF_8,
-        )
         Terminal.success("Captured ${resources.size} resource(s) to $outputDirectory")
     }
 

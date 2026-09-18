@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import copy
 import datetime as dt
+import functools
 import json
 import os
 import platform
@@ -757,6 +758,7 @@ def find_tshark(explicit: str | None = None) -> str:
     raise SystemExit('tshark was not found. Install Wireshark with USBPcap or pass --tshark.')
 
 
+@functools.lru_cache(maxsize=8)
 def _validated_tshark(tshark: str) -> str:
     has_path_hint = any(separator in tshark for separator in ('/', '\\')) or Path(tshark).is_absolute()
     if has_path_hint:
