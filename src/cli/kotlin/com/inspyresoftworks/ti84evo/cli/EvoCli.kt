@@ -17,6 +17,7 @@ import java.io.PrintStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.StandardOpenOption
 import java.security.MessageDigest
 import java.time.Instant
 import kotlin.io.path.extension
@@ -75,7 +76,7 @@ object EvoCli {
         }
     }
 
-    internal fun send(arguments: List<String>) {
+    private fun send(arguments: List<String>) {
         var force = false
         var targetOverride: Boolean? = null
         var projectRoot = Paths.get("").toAbsolutePath().normalize()
@@ -177,7 +178,7 @@ object EvoCli {
         }
     }
 
-    internal fun pull(arguments: List<String>) {
+    private fun pull(arguments: List<String>) {
         var overwrite = false
         var projectRoot = Paths.get("").toAbsolutePath().normalize()
         var index = 0
@@ -321,23 +322,24 @@ object EvoCli {
             }
             index++
         }
-        val outputDirectory = checkNotNull(output) { "diagnose-resources requires --output DIRECTORY" }
+        var outputDirectory = checkNotNull(output) { "diagnose-resources requires --output DIRECTORY" }
         if (outputDirectory.exists()) {
             require(outputDirectory.isDirectory()) { "Diagnostic output is not a directory: $outputDirectory" }
             Files.list(outputDirectory).use { stream ->
-                require(stream.findAny().isEmpty) { "Diagnostic output directory must be empty: $outputDirectory" }
+                if (stream.findAny().isPresent) {
+                    outputDirectory = outputDirectory.resolve("diagnose-${Instant.now().epochSecond}")
+                }
             }
-        } else {
-            Files.createDirectories(outputDirectory)
         }
+        Files.createDirectories(outputDirectory)
 
         val resources = linkedSetOf("sys/attributes", "hh01/inf/res?name=dynamicinfo")
         if (includeDirectory) resources += "hh01/inf/res?name=directory&gotohome=1"
         if (includeScreen) resources += "sys/screen"
         explicitResources.forEach { resources += it }
 
-        val manifest = mutableListOf<String>()
-        manifest += "index\turi\tbytes\tsha256\tcaptured_utc\tbase_name"
+        val manifestPath = outputDirectory.resolve("manifest.tsv")
+        Files.writeString(manifestPath, "index\turi\tbytes\tsha256\tcaptured_utc\tbase_name\n", StandardCharsets.UTF_8)
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
         EvoSerialTransport.auto().use { transport ->
             transport.open()
@@ -353,7 +355,7 @@ object EvoCli {
                     StandardCharsets.UTF_8,
                 )
                 val captured = Instant.now().toString()
-                manifest += listOf(
+                val manifestLine = listOf(
                     (resourceIndex + 1).toString(),
                     uri,
                     raw.size.toString(),
@@ -361,11 +363,24 @@ object EvoCli {
                     captured,
                     baseName,
                 ).joinToString("\t")
+                Files.writeString(
+                    manifestPath,
+                    "$manifestLine\n",
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.APPEND,
+                )
                 Terminal.progress(resourceIndex + 1, resources.size, uri, "READ", raw.size)
             }
         }
-        Files.writeString(outputDirectory.resolve("manifest.tsv"), manifest.joinToString("\n") + "\n", StandardCharsets.UTF_8)
         Terminal.success("Captured ${resources.size} resource(s) to $outputDirectory")
+    }
+
+    internal fun runAutomationCommand(command: String, arguments: List<String>) {
+        when (command.lowercase()) {
+            "send" -> send(arguments)
+            "pull" -> pull(arguments)
+            else -> error("Unsupported automation command: $command")
+        }
     }
 
     private fun deleteFiles(arguments: List<String>) {

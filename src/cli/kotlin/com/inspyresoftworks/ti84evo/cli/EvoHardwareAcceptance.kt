@@ -161,7 +161,7 @@ internal object EvoHardwareAcceptance {
         )
 
         try {
-            EvoCli.send(listOf("--project", sourceRoot.toString()))
+            EvoCli.runAutomationCommand("send", listOf("--project", sourceRoot.toString()))
             assertPrograms(entries, sources)
 
             connected { transport ->
@@ -183,11 +183,11 @@ internal object EvoHardwareAcceptance {
                 EvoVariableTransfer(transport).archiveVariables(listOf(util))
             }
 
-            EvoCli.send(listOf("--project", sourceRoot.toString()))
+            EvoCli.runAutomationCommand("send", listOf("--project", sourceRoot.toString()))
             assertPrograms(entries, sources)
 
             val pullRoot = outputDirectory.resolve("project-pulled-clean")
-            EvoCli.pull(listOf("--project", pullRoot.toString()))
+            EvoCli.runAutomationCommand("pull", listOf("--project", pullRoot.toString()))
             val pulledEntries = EvoProjectManifest.parse(
                 Files.readString(pullRoot.resolve(EvoProjectManifest.FILE_NAME), StandardCharsets.UTF_8),
             ).associateBy { it.programName }

@@ -759,11 +759,15 @@ def find_tshark(explicit: str | None = None) -> str:
 
 def _validated_tshark(tshark: str) -> str:
     has_path_hint = any(separator in tshark for separator in ('/', '\\')) or Path(tshark).is_absolute()
-    resolved = Path(tshark).resolve() if has_path_hint else Path(shutil.which(tshark) or '')
+    if has_path_hint:
+        candidate = Path(tshark)
+        if not candidate.is_absolute():
+            raise SystemExit('tshark must be provided as an absolute path or command name on PATH')
+        resolved = candidate.resolve()
+    else:
+        resolved = Path(shutil.which(tshark) or '')
     if not resolved.is_file():
         raise SystemExit(f'tshark executable was not found: {tshark}')
-    if resolved.name.lower() not in {'tshark', 'tshark.exe'}:
-        raise SystemExit(f'Unexpected tshark executable name: {resolved.name}')
     return str(resolved)
 
 
