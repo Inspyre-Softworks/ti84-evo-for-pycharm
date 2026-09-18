@@ -777,7 +777,7 @@ def run_tshark(
     *arguments: str,
     capture_output: bool = False,
     text: bool = False,
-) -> subprocess.CompletedProcess[str]:
+) -> subprocess.CompletedProcess[str | bytes]:
     return subprocess.run(
         [_validated_tshark(tshark), *arguments],
         check=True,
