@@ -161,7 +161,7 @@ internal object EvoHardwareAcceptance {
         )
 
         try {
-            EvoCli.runAutomationCommand("send", listOf("--project", sourceRoot.toString()))
+            EvoCli.runAutomationCommand("send", listOf("--force", "--project", sourceRoot.toString()))
             assertPrograms(entries, sources)
 
             connected { transport ->

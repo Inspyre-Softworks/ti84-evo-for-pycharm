@@ -131,7 +131,7 @@ object EvoCli {
             entry.copy(archived = targetOverride ?: entry.archived) to Files.readString(path, StandardCharsets.UTF_8)
         }
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        EvoSerialTransport.auto().use { transport ->
+        CliTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
             val calculatorDirectory = EvoLink(transport).getDirectory()
@@ -205,7 +205,7 @@ object EvoCli {
         }
 
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
-        val pulled = EvoSerialTransport.auto().use { transport ->
+        val pulled = CliTransport.auto().use { transport ->
             transport.open()
             Terminal.success("Connected to ${transport.description}")
             EvoPythonProjectPuller(transport).pull { program, completed, total ->
