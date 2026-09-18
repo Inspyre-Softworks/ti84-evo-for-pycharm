@@ -24,6 +24,7 @@ import kotlin.io.path.extension
 import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
 import kotlin.io.path.isRegularFile
+import kotlin.random.Random
 import kotlin.system.exitProcess
 
 /** Standalone sender used by PowerShell and Windows Explorer context menus. */
@@ -328,11 +329,20 @@ object EvoCli {
             Files.list(outputDirectory).use { stream ->
                 if (stream.findAny().isPresent) {
                     val suffix = "diagnose-${Instant.now().epochSecond}"
-                    outputDirectory = outputDirectory.resolveSibling("${outputDirectory.fileName}-$suffix")
+                    outputDirectory = outputDirectory.resolveSibling(
+                        "${outputDirectory.fileName}-$suffix-${Random.nextInt(1000, 10000)}",
+                    )
                 }
             }
         }
         Files.createDirectories(outputDirectory)
+        val incompleteMarker = outputDirectory.resolve("INCOMPLETE.txt")
+        val completeMarker = outputDirectory.resolve("COMPLETE.txt")
+        Files.writeString(
+            incompleteMarker,
+            "Resource capture did not complete. COMPLETE.txt confirms a full capture.\n",
+            StandardCharsets.UTF_8,
+        )
 
         val resources = linkedSetOf("sys/attributes", "hh01/inf/res?name=dynamicinfo")
         if (includeDirectory) resources += "hh01/inf/res?name=directory&gotohome=1"
@@ -373,6 +383,12 @@ object EvoCli {
                 Terminal.progress(resourceIndex + 1, resources.size, uri, "READ", raw.size)
             }
         }
+        Files.writeString(
+            completeMarker,
+            "Captured ${resources.size} resources successfully.\n",
+            StandardCharsets.UTF_8,
+        )
+        Files.deleteIfExists(incompleteMarker)
         Terminal.success("Captured ${resources.size} resource(s) to $outputDirectory")
     }
 
