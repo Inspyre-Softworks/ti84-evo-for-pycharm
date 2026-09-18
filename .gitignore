@@ -3,6 +3,8 @@
 .kotlin/
 build/
 out/
+__pycache__/
+*.pyc
 
 # IntelliJ and local project state
 .idea/

@@ -59,6 +59,31 @@ Use PNG, JPEG, GIF, or BMP for conversion, or provide a native ``.8ci2``,
 reduction under **Transfer settings** or lower its maximum dimensions or color
 count.
 
+SmartPad diagnostic problems
+----------------------------
+
+The 0.5.0 SmartPad code is a protocol/diagnostic foundation, not an enabled
+global-keyboard feature in the PyCharm plugin. Run it from a source checkout as
+described in :doc:`smartpad` and :doc:`development`.
+
+If the HID interface is listed but no raw reports arrive, confirm that the
+SmartPad application is actually open. OS 7.1 enumerates the HID boot-keyboard
+interface even on the ordinary home screen, so interface presence alone does
+not mean SmartPad is active.
+
+On Windows, the operating-system keyboard driver may prevent hidapi from
+opening the interface. Use ``usbpcap-monitor`` with USBPcap/Wireshark instead;
+it records raw endpoint ``84`` reports without replacing the keyboard driver.
+If no USBPcap capture root is available, rerun the Wireshark installer and
+enable its USBPcap component.
+
+Calculator keys can also produce text or shortcuts in the focused Windows
+application because the device is a standard keyboard. Focus a disposable text
+field while testing, close SmartPad when finished, and do not bind calculator
+keys globally. Never publish an unfiltered root-bus capture: it can include
+traffic from unrelated USB devices. The supplied capture command retains only
+the calculator's device address in its requested output file.
+
 Collect useful debug information
 --------------------------------
 

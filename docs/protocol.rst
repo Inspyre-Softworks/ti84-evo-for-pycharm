@@ -1,6 +1,10 @@
 Protocol overview
 =================
 
+The OS 7.1 SmartPad HID work is kept separate from this CDC/Kermit stack. See
+:doc:`smartpad` for the captured composite USB descriptors, HID report model,
+raw-capture tooling, and current unknowns.
+
 The implementation is split into transport, transaction, framing, resource,
 and Python-upload layers:
 

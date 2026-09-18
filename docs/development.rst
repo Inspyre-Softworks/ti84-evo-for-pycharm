@@ -29,7 +29,7 @@ The main source areas are:
    * - ``src/test/kotlin``
      - Host-side unit and integration-style protocol tests
    * - ``docs`` and ``scripts``
-     - Sphinx sources and cross-platform documentation helpers
+     - Sphinx sources, documentation helpers, and isolated SmartPad USB diagnostics
 
 Local workflow
 --------------
@@ -108,6 +108,57 @@ The generated site starts at ``docs/_build/html/index.html``. Dependencies are
 reinstalled only when ``docs/requirements.txt`` changes or the environment
 fails its import check.
 
+SmartPad diagnostic workflow
+----------------------------
+
+SmartPad investigation is deliberately separate from production PyCharm UI
+and the CDC/Kermit implementation. Install its optional Python dependencies
+from a repository checkout:
+
+.. code-block:: powershell
+
+   py -m pip install -r scripts\requirements-smartpad.txt
+   py scripts\smartpad_usb.py --help
+
+The main read-only workflows are:
+
+.. code-block:: powershell
+
+   # Snapshot complete USB/HID identity.
+   py scripts\smartpad_usb.py snapshot `
+     --label home-connected --output captures\smartpad\home
+
+   # Compare two previously saved snapshots.
+   py scripts\smartpad_usb.py compare `
+     captures\smartpad\home\usb-snapshot.json `
+     captures\smartpad\active\usb-snapshot.json
+
+   # Decode an existing capture without connected hardware.
+   py scripts\smartpad_usb.py pcap-decode `
+     captures\smartpad\active\calculator-only.pcapng `
+     --output captures\smartpad\active\reports.log
+
+Windows raw capture requires USBPcap, normally installed with Wireshark.
+``usbpcap-monitor`` filters the saved result to the calculator's current USB
+address and endpoint ``84``; its temporary root-bus trace is discarded. The
+ordinary ``monitor`` command uses hidapi and may be unavailable when Windows'
+keyboard driver exclusively owns the interface.
+
+``probe`` inspects descriptor-defined output and Feature layouts without
+writing. The only write-capable diagnostic is ``led-output``; it accepts only
+the standard five keyboard-LED bits and requires ``--confirm``. Do not add
+arbitrary HID writes or inferred ``hh01`` probes to automated diagnostics.
+
+Run the standalone diagnostic tests alongside the normal Gradle suite:
+
+.. code-block:: powershell
+
+   py -m unittest scripts\test_smartpad_usb.py
+   .\gradlew.bat check --no-daemon
+
+See :doc:`smartpad` for evidence labels, exact descriptors, report layouts,
+the captured key map, CDC/HID coexistence, and remaining unknowns.
+
 Release workflow
 ----------------
 
@@ -174,6 +225,12 @@ calculator-side mutation recovery, editable-variable, Archive, image, and
 screenshot matrix on a physical TI-84 Evo running OS ``7.0.0.3996`` from a
 Windows 11 host. See :doc:`hardware-acceptance` for the sanitized configuration,
 results, firmware-specific behavior, evidence files, and repeatable commands.
+
+Release 0.5.0 additionally captured the SmartPad USB/HID protocol on a physical
+TI-84 Evo running BSP ``7.1.0.4413`` and package ``7.1.0.4421``. It confirmed
+the 50-key map and simultaneous active HID plus read-only CDC/Kermit traffic.
+Those results and their narrower acceptance boundary are documented in
+:doc:`smartpad`; they do not supersede the OS 7.0 write-operation matrix.
 
 This remains evidence for one calculator and host configuration, not every
 firmware, platform, cable, or USB controller. Keep backups and record the

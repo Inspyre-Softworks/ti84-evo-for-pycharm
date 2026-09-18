@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- Document the physical TI-84 Evo OS 7.1 SmartPad investigation, including exact USB descriptors, the decoded HID report descriptor, the captured 50-key map, raw report examples, OS 7.0/7.1 differences, and clearly labeled remaining unknowns.
+- Add a standalone SmartPad USB diagnostic utility for descriptor snapshots and comparison, raw HID/USBPcap monitoring, existing-capture decoding, and conservative inspection of descriptor-defined output and Feature reports.
+- Add UI-independent SmartPad descriptor, device-mode, report, key-event, and monitor models with coverage for press/release transitions, held and multiple keys, modifier chords, unknown usages, malformed reports, and optional Report IDs.
+- Confirm on physical OS 7.1 hardware that active SmartPad HID and the existing CDC/Kermit resource protocol operate simultaneously without replacing or modifying the known-good Kermit implementation.
+- Add the read-only `diagnose-resources` CLI command to preserve raw CBOR responses, lossless decoded values, unknown fields, SHA-256 hashes, directory data, and optional screen resources for future firmware comparison.
+
 ## 0.4.2
 
 - Add repeatable physical-calculator acceptance with complete preflight backup, packet traces, contained fixtures, post-run cleanup, and recorded firmware and host configuration.
