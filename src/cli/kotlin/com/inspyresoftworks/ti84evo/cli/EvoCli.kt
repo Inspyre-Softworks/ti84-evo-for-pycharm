@@ -327,7 +327,8 @@ object EvoCli {
             require(outputDirectory.isDirectory()) { "Diagnostic output is not a directory: $outputDirectory" }
             Files.list(outputDirectory).use { stream ->
                 if (stream.findAny().isPresent) {
-                    outputDirectory = outputDirectory.resolve("diagnose-${Instant.now().epochSecond}")
+                    val suffix = "diagnose-${Instant.now().epochSecond}"
+                    outputDirectory = outputDirectory.resolveSibling("${outputDirectory.fileName}-$suffix")
                 }
             }
         }
