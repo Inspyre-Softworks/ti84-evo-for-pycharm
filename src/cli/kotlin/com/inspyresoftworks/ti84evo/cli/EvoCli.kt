@@ -362,7 +362,7 @@ object EvoCli {
                     val captured = Instant.now().toString()
                     val manifestLine = listOf(
                         (resourceIndex + 1).toString(),
-                        uri,
+                        uri.replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n"),
                         raw.size.toString(),
                         sha256(raw),
                         captured,
