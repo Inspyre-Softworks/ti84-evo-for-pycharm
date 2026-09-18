@@ -379,6 +379,7 @@ object EvoCli {
         when (command.lowercase()) {
             "send" -> send(arguments)
             "pull" -> pull(arguments)
+            "diagnose-resources" -> diagnoseResources(arguments)
             "backup" -> backup(arguments)
             "hardware-acceptance" -> hardwareAcceptance(arguments)
             else -> error("Unsupported automation command: $command")
