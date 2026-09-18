@@ -765,6 +765,8 @@ def _validated_tshark(tshark: str) -> str:
         resolved = Path(shutil.which(tshark) or '')
     if not resolved.is_file():
         raise SystemExit(f'tshark executable was not found: {tshark}')
+    if not os.access(resolved, os.X_OK):
+        raise SystemExit(f'tshark is not executable: {resolved}')
     return str(resolved)
 
 

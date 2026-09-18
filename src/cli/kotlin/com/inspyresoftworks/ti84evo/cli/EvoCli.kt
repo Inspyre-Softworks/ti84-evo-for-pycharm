@@ -14,6 +14,7 @@ import com.inspyresoftworks.ti84evo.protocol.isPersistentBuiltInList
 import com.inspyresoftworks.ti84evo.transport.EvoSerialTransport
 import java.nio.charset.StandardCharsets
 import java.io.PrintStream
+import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -328,14 +329,24 @@ object EvoCli {
             require(outputDirectory.isDirectory()) { "Diagnostic output is not a directory: $outputDirectory" }
             Files.list(outputDirectory).use { stream ->
                 if (stream.findAny().isPresent) {
-                    val suffix = "diagnose-${Instant.now().epochSecond}"
-                    outputDirectory = outputDirectory.resolveSibling(
-                        "${outputDirectory.fileName}-$suffix-${Random.nextInt(1000, 10000)}",
-                    )
+                    val parent = outputDirectory.parent ?: Paths.get("").toAbsolutePath().normalize()
+                    val baseName = outputDirectory.fileName.toString()
+                    while (true) {
+                        val suffix = "diagnose-${Instant.now().toEpochMilli()}-${Random.nextInt(1000, 10000)}"
+                        val candidate = parent.resolve("$baseName-$suffix")
+                        try {
+                            Files.createDirectory(candidate)
+                            outputDirectory = candidate
+                            break
+                        } catch (_: FileAlreadyExistsException) {
+                            continue
+                        }
+                    }
                 }
             }
+        } else {
+            Files.createDirectories(outputDirectory)
         }
-        Files.createDirectories(outputDirectory)
         val incompleteMarker = outputDirectory.resolve("INCOMPLETE.txt")
         val completeMarker = outputDirectory.resolve("COMPLETE.txt")
         Files.writeString(
@@ -358,7 +369,8 @@ object EvoCli {
             val link = EvoLink(transport)
             resources.forEachIndexed { resourceIndex, uri ->
                 val raw = link.getResource(uri)
-                val baseName = "%03d_%s".format(resourceIndex + 1, safeResourceName(uri))
+                val uriHash = sha256(uri.toByteArray(StandardCharsets.UTF_8)).take(12)
+                val baseName = "%03d_%s_%s".format(resourceIndex + 1, safeResourceName(uri), uriHash)
                 Files.write(outputDirectory.resolve("$baseName.cbor"), raw)
                 Files.writeString(
                     outputDirectory.resolve("$baseName.txt"),
@@ -571,7 +583,7 @@ object EvoCli {
         .map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
         .joinToString("")
         .ifBlank { "resource" }
-        .take(64)
+        .take(40)
 
     private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes)
