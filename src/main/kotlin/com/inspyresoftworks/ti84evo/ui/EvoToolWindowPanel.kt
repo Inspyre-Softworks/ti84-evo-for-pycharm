@@ -833,7 +833,9 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
 
         val formatChoice = Messages.showDialog(
             project,
-            "Upload ${chooser.selectedFile.name} as a native Image variable or a Python image AppVar?",
+            "Upload ${chooser.selectedFile.name} as a native Image variable or a Python image AppVar?\n\n" +
+                "Image fills the graph background, cropping the edges to fit.\n" +
+                "AppVar keeps the whole image for use in Python.",
             "Upload Picture to TI-84 Evo",
             arrayOf("Image", "AppVar", "Cancel"),
             0,

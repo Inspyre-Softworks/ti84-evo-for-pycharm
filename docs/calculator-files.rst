@@ -104,6 +104,11 @@ For desktop image conversion, choose the calculator format:
 * **Image** stores the upload in a fixed native image slot, ``Image1`` through
   ``Image9`` or ``Image0``, using the calculator's fixed-size 160×105 RGB565
   native image payload. The calculator directory reports it as ``Image (5)``.
+  Images fill the background while preserving aspect ratio: wide or tall
+  sources are cropped equally at opposite edges, with no added borders.
+  Large photos are reduced in stages to retain detail; transparency is
+  composited onto white. Native backgrounds use the same 160×105 pixel
+  dimensions as the sample images.
 * **AppVar** stores a named Python image AppVar that can be opened with
   ``ti_image.load_image(name)``. These uploads use compressed ``IM8C`` data,
   and the file browser labels recognized uploads as ``Python Image (8)``.
@@ -115,8 +120,9 @@ Native Image names must be fixed slots. Python image AppVar names must begin
 with a letter and contain one to eight uppercase letters, digits, or
 underscores. The dialog normalizes entered names to uppercase.
 
-Use **Transfer settings** to control dimension reduction, maximum width and
-height, and palette size. The plugin preserves the aspect ratio. These settings
+Use **Transfer settings** to control AppVar dimension reduction, maximum width
+and height, and palette size. AppVars preserve the entire image and its aspect
+ratio. Native backgrounds always use fixed dimensions and RGB565 color. These settings
 are stored in PyCharm's user configuration and apply to every project.
 
 .. figure:: _static/screenshots/transfer-settings.png

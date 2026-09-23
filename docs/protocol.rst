@@ -341,11 +341,14 @@ fingerprint is unchanged. The PyCharm plugin and CLI share this decision logic.
 Picture upload path
 -------------------
 
-Desktop raster images are resized with their aspect ratio intact, quantized to
-a configurable palette, and encoded in one of two calculator formats. Native
+Desktop raster images are encoded in one of two calculator formats. Native
 Image uploads use the calculator's fixed 160×105 little-endian RGB565 type-5
-Image payload for ``Image1`` through ``Image9`` and ``Image0``. Python image
-AppVar uploads are converted to RGB565 and encoded as run-length-compressed
+Image payload for ``Image1`` through ``Image9`` and ``Image0``. They use the
+exported-sample marker ``0x16`` followed by rows ordered bottom-to-top and
+pixels ordered left-to-right. Sources are center-cropped to fill the canvas
+without stretching, then progressively downsampled with bicubic interpolation.
+Python image AppVar uploads preserve aspect ratio, are quantized to a
+configurable RGB565 palette, and encoded as run-length-compressed
 ``IM8C`` data inside a type-8 Evo AppVar envelope; the converter reduces the
 dimensions further when necessary to fit the IM8C format's 16-bit image-length
 field.
@@ -363,3 +366,6 @@ The protocol code is independently implemented in Kotlin. The public
 reference during development and is not a runtime dependency.
 The public `TI-Planet img2calc IM8C encoder
 <https://github.com/TI-Planet/img2calc>`_ was used as the image-format reference.
+The `tivars_lib_cpp Evo background format notes
+<https://github.com/adriweb/tivars_lib_cpp/blob/evo/evo-doc/8ca2-background-image.md>`_
+document the native image marker, dimensions, and bottom-up scanline order.

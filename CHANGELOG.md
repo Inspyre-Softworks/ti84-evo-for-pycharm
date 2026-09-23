@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- Correct native background image orientation and the Evo format marker, fill the sample-sized canvas with a centered crop, and improve photo downsampling quality.
+
 ## 0.5.0
 
 - Document the physical TI-84 Evo OS 7.1 SmartPad investigation, including exact USB descriptors, the decoded HID report descriptor, the captured 50-key map, raw report examples, OS 7.0/7.1 differences, and clearly labeled remaining unknowns.
