@@ -6,6 +6,12 @@ physical calculator with contained ``HA42`` fixtures, saves protocol traces,
 removes every fixture, and finally compares the calculator directory with its
 pre-run identity and RAM/Archive locations.
 
+.. note::
+
+   This page records the broad OS 7.0 write-operation matrix for release 0.4.2.
+   Release 0.5.0's narrower OS 7.1 SmartPad/HID and read-only CDC coexistence
+   evidence is recorded separately in :doc:`smartpad`.
+
 0.4.2 accepted configuration
 ----------------------------
 

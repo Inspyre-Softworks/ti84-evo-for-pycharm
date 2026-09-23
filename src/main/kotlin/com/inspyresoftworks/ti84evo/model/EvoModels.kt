@@ -19,9 +19,10 @@ data class EvoDirectoryEntry(
     val size: Long,
     val archived: Boolean,
     val tokenName: ByteArray,
+    val displayTypeName: String? = null,
 ) {
     val typeName: String
-        get() = when (type) {
+        get() = displayTypeName ?: when (type) {
             0 -> "Number"
             1 -> "List"
             2 -> "Program"

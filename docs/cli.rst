@@ -37,12 +37,14 @@ Command map
        shell [label="Explorer", fillcolor="#eef4fc", color="#477db3"];
        safety [label="Hardware acceptance", fillcolor="#fff8e8", color="#a87818"];
        list [label="list-files"];
+       diagnose [label="diagnose-resources"];
        send [label="send / pull"];
        vars [label="archive / delete"];
        menus [label="install-context-menu\nuninstall-context-menu"];
        backup [label="backup /\nhardware-acceptance"];
 
        cli -> read -> list;
+       read -> diagnose;
        cli -> sync -> send;
        cli -> mutate -> vars;
        cli -> shell -> menus;
@@ -64,10 +66,41 @@ Common commands
    .\ti84-evo.ps1 archive MAIN:15
    .\ti84-evo.ps1 delete MAIN:15
    .\ti84-evo.ps1 delete L1:1
+   .\ti84-evo.ps1 diagnose-resources --output .\captures\resources `
+     --include-directory --include-screen
    .\ti84-evo.ps1 backup .\captures\backup
 
 ``list-files`` is read-only and shows each variable's name, numeric type, size,
 and RAM/Archive location.
+
+Read-only resource diagnostics
+------------------------------
+
+``diagnose-resources`` preserves calculator responses for firmware comparison
+without converting away unknown CBOR keys or byte strings. It always reads
+``sys/attributes`` and ``dynamicinfo``. Use ``--include-directory`` and
+``--include-screen`` for the larger standard resources, or repeat
+``--resource URI`` for another explicitly known read-only resource:
+
+.. code-block:: powershell
+
+   .\ti84-evo.ps1 diagnose-resources `
+     --output .\captures\os-7.1-resources `
+     --include-directory `
+     --resource hh01/inf/res?name=dynamicinfo
+
+The output directory contains, for each response:
+
+* an untouched ``.cbor`` file;
+* a lossless text rendering that leaves unknown fields and byte strings visible;
+* byte count and SHA-256 metadata in ``manifest.tsv``; and
+* a UTC capture timestamp.
+
+This command performs reads only. It does not probe guessed resource names,
+send scancodes, write variables, or issue SmartPad HID output reports. Device
+identifiers remain present in the local raw response; review or redact them
+before publishing diagnostic files. See :doc:`smartpad` for the OS 7.1 results
+and the separate raw USB/HID capture utility.
 
 Send and pull
 -------------

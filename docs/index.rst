@@ -42,6 +42,12 @@ Start here
 
       Diagnose device detection, timeouts, conflicts, and image conversion.
 
+   .. grid-item-card:: Investigate SmartPad
+      :link: smartpad
+      :link-type: doc
+
+      Review OS 7.1 USB/HID findings, the physical key map, and diagnostics.
+
 Choose a route
 --------------
 
@@ -67,6 +73,7 @@ Choose a route
        projects [label="Multi-file projects"];
        cli [label="CLI"];
        protocol [label="Protocol overview"];
+       smartpad [label="OS 7.1 SmartPad/HID"];
        development [label="Development"];
 
        goal -> use;
@@ -74,7 +81,9 @@ Choose a route
        use -> files;
        use -> projects;
        goal -> automate -> cli;
-       goal -> understand -> protocol;
+       goal -> understand;
+       understand -> protocol;
+       understand -> smartpad;
        goal -> contribute -> development;
    }
 
@@ -105,6 +114,7 @@ Project links
    :hidden:
 
    protocol
+   smartpad
    glossary
    hardware-acceptance
 

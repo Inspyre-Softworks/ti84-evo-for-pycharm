@@ -831,27 +831,48 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
             return
         }
 
-        val defaultName = EvoImagePayload.defaultName(chooser.selectedFile.nameWithoutExtension)
+        val formatChoice = Messages.showDialog(
+            project,
+            "Upload ${chooser.selectedFile.name} as a native Image variable or a Python image AppVar?",
+            "Upload Picture to TI-84 Evo",
+            arrayOf("Image", "AppVar", "Cancel"),
+            0,
+            Messages.getQuestionIcon(),
+        )
+        if (formatChoice !in 0..1) return
+        val format = if (formatChoice == 0) {
+            EvoImagePayload.Format.NATIVE_IMAGE
+        } else {
+            EvoImagePayload.Format.PYTHON_APP_VAR
+        }
+
+        val defaultName = EvoImagePayload.defaultName(chooser.selectedFile.nameWithoutExtension, format)
+        val namePrompt = when (format) {
+            EvoImagePayload.Format.NATIVE_IMAGE -> "Native image slot (Image1 through Image9, or Image0):"
+            EvoImagePayload.Format.PYTHON_APP_VAR -> "Python image AppVar name (1-8 letters, digits, or underscores):"
+        }
         val name = Messages.showInputDialog(
             project,
-            "Python image variable name (1–8 letters, digits, or underscores):",
+            namePrompt,
             "Upload Picture to TI-84 Evo",
             Messages.getQuestionIcon(),
             defaultName,
             object : InputValidator {
-                override fun checkInput(inputString: String): Boolean = EvoImagePayload.isValidName(inputString.uppercase())
+                override fun checkInput(inputString: String): Boolean =
+                    EvoImagePayload.isValidName(inputString.uppercase(), format)
                 override fun canClose(inputString: String): Boolean = checkInput(inputString)
             },
         ) ?: return
 
         showStatus("Converting ${chooser.selectedFile.name}…", StatusKind.WORKING)
         output.text = "Converting ${chooser.selectedFile.name} with your image transfer settings…"
-        service.uploadImage(path, name.uppercase(), archived, applicationSettings.snapshot()) { result ->
+        service.uploadImage(path, name.uppercase(), archived, applicationSettings.snapshot(), format) { result ->
             onEdt {
                 result.onSuccess { upload ->
-                    showStatus("Uploaded image ${upload.image.name}", StatusKind.CONNECTED)
+                    showStatus("Uploaded ${upload.image.format.label} ${upload.image.name}", StatusKind.CONNECTED)
                     output.text = buildString {
                         appendLine("Picture upload successful")
+                        appendLine("Format: ${upload.image.format.label}")
                         appendLine("Variable: ${upload.image.name}")
                         appendLine("Original: ${upload.image.sourceWidth}×${upload.image.sourceHeight}")
                         appendLine("Converted: ${upload.image.width}×${upload.image.height}, ${upload.image.colors} colors")
@@ -862,7 +883,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                             append(" (firmware rejected RAM and accepted Archive)")
                         }
                     }
-                    refreshDirectoryAfterOperation("Uploaded image ${upload.image.name}")
+                    refreshDirectoryAfterOperation("Uploaded ${upload.image.format.label} ${upload.image.name}")
                 }.onFailure { showFailure(it) }
             }
         }

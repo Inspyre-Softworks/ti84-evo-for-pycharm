@@ -12,13 +12,14 @@ Glossary table of contents
 **D–F** — :term:`D frame`, :term:`dynamic resource`, :term:`endpoint`,
 :term:`extended frame`, :term:`frame`, :term:`framebuffer`
 
-**H–P** — :term:`hh01`, :term:`Kermit`, :term:`long packet`,
-:term:`Marauders Lock`, :term:`PID`
+**H–P** — :term:`hh01`, :term:`HID`, :term:`HID report descriptor`,
+:term:`Kermit`, :term:`long packet`, :term:`Marauders Lock`, :term:`PID`
 
 **R** — :term:`RAM`, :term:`repeat encoding`, :term:`resource`, :term:`RGB565`
 
-**S–V** — :term:`short frame`, :term:`synthetic library`, :term:`tokenized name`,
-:term:`transaction ladder`, :term:`type stub`, :term:`VID`
+**S–V** — :term:`short frame`, :term:`SmartPad`, :term:`synthetic library`,
+:term:`tokenized name`, :term:`transaction ladder`, :term:`type stub`,
+:term:`usage`, :term:`USBPcap`, :term:`VID`
 
 .. glossary::
    :sorted:
@@ -95,6 +96,17 @@ Glossary table of contents
       The calculator namespace used at the start of Evo resource and variable-
       transfer descriptors, such as ``hh01/get/hh01/sys/screen``.
 
+   HID
+      USB Human Interface Device class. The Evo exposes a boot-keyboard HID
+      interface in the same composite device as :term:`CDC`; SmartPad activates
+      calculator-key reports on its interrupt IN endpoint.
+
+   HID report descriptor
+      The bytecode-like declaration of a HID device's report fields, sizes,
+      usage pages, usages, and input/output direction. The Evo descriptor
+      declares an eight-byte keyboard input report and a one-byte LED output
+      report, with no Feature report.
+
    Kermit
       The packet-transfer protocol used by the Evo transaction ladder. The
       plugin uses it for calculator resource exchanges and Python variable
@@ -134,6 +146,11 @@ Glossary table of contents
       The compact Evo frame form whose length fits in one printable length
       byte. Larger packets require an :term:`extended frame`.
 
+   SmartPad
+      The OS 7.1 calculator application that sends physical Evo keypresses to
+      the host through the calculator's pre-existing USB keyboard interface.
+      See :doc:`smartpad` for captured behavior and evidence boundaries.
+
    synthetic library
       An editor-only PyCharm library created by the plugin. It exposes the
       bundled TI Python type stubs without installing a desktop package or
@@ -153,6 +170,16 @@ Glossary table of contents
       A ``.pyi`` declaration file that describes Python modules, functions,
       parameters, and return types to the editor without providing a runtime
       implementation.
+
+   usage
+      A numeric HID control identifier within a usage page. SmartPad reports
+      standard Keyboard/Keypad usages, often combining F14--F20 with modifier
+      bits to make each calculator key distinct.
+
+   USBPcap
+      A Windows USB capture driver supported by Wireshark. The SmartPad
+      diagnostics use it to preserve raw interrupt transfers rather than
+      relying only on operating-system keyboard events.
 
    VID
       USB vendor identifier. Texas Instruments uses VID ``0451``; the plugin
