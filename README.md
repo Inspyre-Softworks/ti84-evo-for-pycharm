@@ -80,7 +80,7 @@ Open **Calculator Files** to browse variables on the connected calculator. From 
 
 Deleting one of the built-in lists `L1`–`L6` clears its contents while preserving its List Editor slot. Other selected variables are removed and cannot be recovered.
 
-To upload a picture, choose **Upload picture**. Standard desktop image formats are converted to a compressed Evo Python image variable, while existing `.8ci2`, `.8ca2`, and `.8xv2` files are transferred without conversion. Image size and palette limits are available under **Transfer settings**.
+To upload a picture, choose **Upload picture**. Standard desktop image formats can be converted to either a native Evo Image variable or a Python image AppVar, while existing `.8ci2`, `.8ca2`, and `.8xv2` files are transferred without conversion. Image size and palette limits are available under **Transfer settings**.
 
 ## Multi-file projects
 

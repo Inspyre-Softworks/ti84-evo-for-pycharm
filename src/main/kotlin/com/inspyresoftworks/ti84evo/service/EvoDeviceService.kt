@@ -54,7 +54,7 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
     }
 
     fun readDirectory(callback: (Result<List<EvoDirectoryEntry>>) -> Unit) {
-        runLinkOperation({ it.getDirectory() }, callback)
+        runLinkOperation({ readDirectoryWithPythonImages(it) }, callback)
     }
 
     fun readPythonProjectState(
@@ -173,6 +173,7 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
         name: String,
         archived: Boolean,
         settings: EvoApplicationSettings.State,
+        format: EvoImagePayload.Format,
         callback: (Result<ImageUploadResult>) -> Unit,
     ) {
         coroutineScope.launch {
@@ -180,7 +181,7 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
                 withContext(Dispatchers.IO) {
                     val source = ImageIO.read(path.toFile())
                         ?: error("Unsupported or unreadable image: ${path.fileName}")
-                    val image = EvoImagePayload.build(source, name, settings)
+                    val image = EvoImagePayload.build(source, name, settings, format)
                     EvoSerialTransport.auto().use { transport ->
                         transport.open()
                         ImageUploadResult(image, EvoVariableTransfer(transport).uploadImage(image, archived))
@@ -224,6 +225,15 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
         }
     }
 
+    private fun readDirectoryWithPythonImages(link: EvoLink): List<EvoDirectoryEntry> =
+        link.getDirectory().map { entry ->
+            if (entry.type != PYTHON_IMAGE_APPVAR_TYPE) return@map entry
+            val isPythonImage = runCatching {
+                EvoImagePayload.isPythonImageVariable(link.getVariable(entry))
+            }.getOrDefault(false)
+            if (isPythonImage) entry.copy(displayTypeName = "Python Image") else entry
+        }
+
     private fun <T> runTransferOperation(
         operation: (EvoSerialTransport) -> T,
         callback: (Result<T>) -> Unit,
@@ -239,5 +249,9 @@ class EvoDeviceService(private val coroutineScope: CoroutineScope) {
             }
             callback(result)
         }
+    }
+
+    private companion object {
+        const val PYTHON_IMAGE_APPVAR_TYPE = 8
     }
 }

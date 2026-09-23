@@ -7,10 +7,16 @@ import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
 
-/** Converts a desktop image to the Evo's compressed IM8C Python-image AppVar envelope. */
+/** Converts a desktop image to the Evo's compressed IM8C image envelopes. */
 object EvoImagePayload {
+    enum class Format(val typeId: Int, val label: String) {
+        NATIVE_IMAGE(5, "Image"),
+        PYTHON_APP_VAR(8, "Python image AppVar"),
+    }
+
     data class Built(
         val name: String,
+        val format: Format,
         val sourceWidth: Int,
         val sourceHeight: Int,
         val width: Int,
@@ -19,19 +25,40 @@ object EvoImagePayload {
         val bytes: ByteArray,
     )
 
-    fun isValidName(name: String): Boolean =
-        name.length in 1..8 && name.first() in 'A'..'Z' && name.all { it in 'A'..'Z' || it in '0'..'9' || it == '_' }
+    fun isValidName(name: String, format: Format = Format.PYTHON_APP_VAR): Boolean {
+        val normalized = name.uppercase()
+        return when (format) {
+            Format.NATIVE_IMAGE -> IMAGE_SLOT.matches(normalized)
+            Format.PYTHON_APP_VAR ->
+                normalized.length in 1..8 &&
+                    normalized.first() in 'A'..'Z' &&
+                    normalized.all { it in 'A'..'Z' || it in '0'..'9' || it == '_' }
+        }
+    }
 
-    fun defaultName(fileStem: String): String {
+    fun defaultName(fileStem: String, format: Format = Format.PYTHON_APP_VAR): String {
+        if (format == Format.NATIVE_IMAGE) {
+            return fileStem.lastOrNull { it in '0'..'9' }?.let { "Image$it" } ?: "Image1"
+        }
         val cleaned = fileStem.uppercase().filter { it in 'A'..'Z' || it.isDigit() || it == '_' }.take(8)
         return cleaned.takeIf { it.firstOrNull() in 'A'..'Z' } ?: "IMAGE"
     }
 
-    fun transferUrl(name: String, archived: Boolean): String {
-        require(isValidName(name)) { "Invalid Evo image variable name" }
+    fun isPythonImageVariable(raw: ByteArray): Boolean = runCatching {
+        val inspection = EvoVariableFile.inspect(raw)
+        val type = (inspection.metadata["type"] as? Number)?.toInt()
+        val data = inspection.data
+        type == PYTHON_IMAGE_APPVAR_TYPE &&
+            data.size >= 6 &&
+            readUInt16Le(data, 0) == data.size - 2 &&
+            data.copyOfRange(2, 6).contentEquals(IM8C_SIGNATURE)
+    }.getOrDefault(false)
+
+    fun transferUrl(name: String, archived: Boolean, format: Format = Format.PYTHON_APP_VAR): String {
+        require(isValidName(name, format)) { "Invalid Evo image variable name" }
         val encoded = buildString {
             var offset = 0
-            val tokens = tokenName(name.uppercase())
+            val tokens = tokenName(name.uppercase(), format)
             while (offset + 1 < tokens.size) {
                 val word = (tokens[offset].toInt() and 0xFF) or ((tokens[offset + 1].toInt() and 0xFF) shl 8)
                 word.toChar().toString().toByteArray(StandardCharsets.UTF_8).forEach { byte ->
@@ -40,10 +67,15 @@ object EvoImagePayload {
                 offset += 2
             }
         }
-        return "hh01/xfr/var?name=$encoded&type=8&memtarget=${if (archived) 1 else 0}&policy=1"
+        return "hh01/xfr/var?name=$encoded&type=${format.typeId}&memtarget=${if (archived) 1 else 0}&policy=1"
     }
 
-    fun build(source: BufferedImage, requestedName: String, settings: EvoApplicationSettings.State): Built {
+    fun build(
+        source: BufferedImage,
+        requestedName: String,
+        settings: EvoApplicationSettings.State,
+        format: Format = Format.PYTHON_APP_VAR,
+    ): Built {
         return build(
             source,
             requestedName,
@@ -51,6 +83,7 @@ object EvoImagePayload {
             settings.imageMaxWidth,
             settings.imageMaxHeight,
             settings.imageColors,
+            format,
         )
     }
 
@@ -61,10 +94,36 @@ object EvoImagePayload {
         imageMaxWidth: Int = 320,
         imageMaxHeight: Int = 210,
         imageColors: Int = 64,
+        format: Format = Format.PYTHON_APP_VAR,
     ): Built {
         require(source.width > 0 && source.height > 0) { "Image has no pixels" }
-        val name = requestedName.trim().uppercase()
-        require(isValidName(name)) { "Image variable name must begin with a letter and contain 1–8 letters, digits, or underscores" }
+        val normalizedName = requestedName.trim().uppercase()
+        require(isValidName(normalizedName, format)) {
+            when (format) {
+                Format.NATIVE_IMAGE -> "Native image name must be Image1 through Image9, or Image0"
+                Format.PYTHON_APP_VAR -> "Image AppVar name must begin with a letter and contain 1-8 letters, digits, or underscores"
+            }
+        }
+        val name = if (format == Format.NATIVE_IMAGE) {
+            "Image${checkNotNull(IMAGE_SLOT.matchEntire(normalizedName)).groupValues[1]}"
+        } else {
+            normalizedName
+        }
+
+        if (format == Format.NATIVE_IMAGE) {
+            val image = fitNativeImage(source)
+            val data = encodeNativeImage(image)
+            return Built(
+                name,
+                format,
+                source.width,
+                source.height,
+                image.width,
+                image.height,
+                NATIVE_IMAGE_COLORS,
+                wrapVariable(name, format, data),
+            )
+        }
 
         val maxWidth = if (optimizeImages) imageMaxWidth else 320
         val maxHeight = if (optimizeImages) imageMaxHeight else 210
@@ -84,12 +143,13 @@ object EvoImagePayload {
                 }.toByteArray()
                 return Built(
                     name,
+                    format,
                     source.width,
                     source.height,
                     width,
                     height,
                     encoded.paletteSize,
-                    wrapAppVar(name, data),
+                    wrapVariable(name, format, data),
                 )
             }
             if (!optimizeImages) {
@@ -105,6 +165,35 @@ object EvoImagePayload {
     }
 
     private data class Color(val r: Int, val g: Int, val b: Int, val count: Int)
+
+    private fun fitNativeImage(source: BufferedImage): BufferedImage {
+        val target = BufferedImage(NATIVE_IMAGE_WIDTH, NATIVE_IMAGE_HEIGHT, BufferedImage.TYPE_INT_RGB)
+        val graphics = target.createGraphics()
+        graphics.color = java.awt.Color.WHITE
+        graphics.fillRect(0, 0, target.width, target.height)
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+        val scale = minOf(
+            NATIVE_IMAGE_WIDTH.toDouble() / source.width,
+            NATIVE_IMAGE_HEIGHT.toDouble() / source.height,
+        )
+        val width = (source.width * scale).roundToInt().coerceIn(1, NATIVE_IMAGE_WIDTH)
+        val height = (source.height * scale).roundToInt().coerceIn(1, NATIVE_IMAGE_HEIGHT)
+        graphics.drawImage(source, (NATIVE_IMAGE_WIDTH - width) / 2, (NATIVE_IMAGE_HEIGHT - height) / 2, width, height, null)
+        graphics.dispose()
+        return target
+    }
+
+    private fun encodeNativeImage(image: BufferedImage): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(NATIVE_IMAGE_MARKER)
+        for (y in 0 until NATIVE_IMAGE_HEIGHT) {
+            for (x in 0 until NATIVE_IMAGE_WIDTH) {
+                out.writeUInt16Le(toRgb565(image.getRGB(x, y)))
+            }
+        }
+        return out.toByteArray()
+    }
 
     private fun encodeImage(image: BufferedImage, maxColors: Int): EncodedImage {
         val transparent = (0 until image.height).any { y -> (0 until image.width).any { x -> image.getRGB(x, y).ushr(24) < 128 } }
@@ -144,7 +233,7 @@ object EvoImagePayload {
         }
 
         val out = ByteArrayOutputStream().apply {
-            write("IM8C".toByteArray(StandardCharsets.US_ASCII))
+            write(IM8C_SIGNATURE)
             writeUInt24Le(image.width)
             writeUInt24Le(image.height)
             write(1) // Palette format version.
@@ -246,14 +335,15 @@ object EvoImagePayload {
         return out.toByteArray()
     }
 
-    private fun wrapAppVar(name: String, data: ByteArray): ByteArray = ByteArrayOutputStream().apply {
+    private fun wrapVariable(name: String, format: Format, data: ByteArray): ByteArray = ByteArrayOutputStream().apply {
         write(0xBF)
         write(cborText("metaData"))
         write(0xBF)
-        write(cborText("type")); write(cborUnsigned(8))
+        write(cborText("type")); write(cborUnsigned(format.typeId))
         write(cborText("version")); write(cborUnsigned(1))
         write(cborText("flags")); write(cborUnsigned(1))
-        write(cborText("name")); write(cborBytes(tokenName(name) + byteArrayOf(0, 0)))
+        val nameBytes = tokenName(name, format) + if (format == Format.PYTHON_APP_VAR) byteArrayOf(0, 0) else byteArrayOf()
+        write(cborText("name")); write(cborBytes(nameBytes))
         write(0xFF)
         write(cborText("version")); write(cborUnsigned(1))
         write(cborText("size")); write(cborUnsigned(data.size))
@@ -261,15 +351,21 @@ object EvoImagePayload {
         write(0xFF)
     }.toByteArray()
 
-    private fun tokenName(name: String): ByteArray = ByteArrayOutputStream().apply {
-        name.forEach { char ->
-            val token = when (char) {
-                in 'A'..'Z' -> 0xE800 + (char - 'A')
-                in '0'..'9' -> 0xE401 + (char - '0')
-                '_' -> 0x005F
-                else -> error("Unsupported image name character")
+    private fun tokenName(name: String, format: Format): ByteArray = ByteArrayOutputStream().apply {
+        if (format == Format.NATIVE_IMAGE) {
+            val slot = IMAGE_SLOT.matchEntire(name.uppercase())?.groupValues?.get(1)
+                ?: error("Unsupported native image slot")
+            writeUInt16Le(if (slot == "0") IMAGE_ZERO_TOKEN else IMAGE_FIRST_TOKEN + (slot.single() - '1'))
+        } else {
+            name.forEach { char ->
+                val token = when (char) {
+                    in 'A'..'Z' -> 0xE800 + (char - 'A')
+                    in '0'..'9' -> 0xE401 + (char - '0')
+                    '_' -> 0x005F
+                    else -> error("Unsupported image name character")
+                }
+                writeUInt16Le(token)
             }
-            writeUInt16Le(token)
         }
     }.toByteArray()
 
@@ -284,6 +380,9 @@ object EvoImagePayload {
 
     private fun toRgb565(argb: Int): Int =
         (((argb shr 19) and 0x1F) shl 11) or (((argb shr 10) and 0x3F) shl 5) or ((argb shr 3) and 0x1F)
+
+    private fun readUInt16Le(data: ByteArray, offset: Int): Int =
+        (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)
 
     private fun cborText(value: String): ByteArray = value.toByteArray(StandardCharsets.UTF_8).let {
         KermitPacketCodec.concat(cborLength(3, it.size), it)
@@ -308,4 +407,14 @@ object EvoImagePayload {
     private fun ByteArrayOutputStream.writeUInt24Le(value: Int) {
         write(value and 0xFF); write((value shr 8) and 0xFF); write((value shr 16) and 0xFF)
     }
+
+    private const val PYTHON_IMAGE_APPVAR_TYPE = 8
+    private const val NATIVE_IMAGE_WIDTH = 160
+    private const val NATIVE_IMAGE_HEIGHT = 105
+    private const val NATIVE_IMAGE_MARKER = 0x81
+    private const val NATIVE_IMAGE_COLORS = 65536
+    private const val IMAGE_FIRST_TOKEN = 0xE8B0
+    private const val IMAGE_ZERO_TOKEN = 0xE8B9
+    private val IMAGE_SLOT = Regex("IMAGE([0-9])")
+    private val IM8C_SIGNATURE = "IM8C".toByteArray(StandardCharsets.US_ASCII)
 }

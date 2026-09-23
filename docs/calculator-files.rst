@@ -99,17 +99,21 @@ Choose **Upload picture** and select one of these inputs:
 * PNG, JPEG, GIF, or BMP for conversion by the plugin
 * ``.8ci2``, ``.8ca2``, or ``.8xv2`` for transfer without conversion
 
-Converted images become palette-based, run-length-compressed Evo Python image
-variables that can be opened with ``ti_image.load_image(name)``.
+For desktop image conversion, choose the calculator format:
 
-On firmware 7.0, type-8 Python image variables cannot be retained in RAM. If a
-RAM image upload is rejected with that firmware's invalid-payload response,
-the plugin retries the native image file in Archive and reports its actual
-location.
+* **Image** stores the upload in a fixed native image slot, ``Image1`` through
+  ``Image9`` or ``Image0``, using the calculator's fixed-size 160×105 RGB565
+  native image payload. The calculator directory reports it as ``Image (5)``.
+* **AppVar** stores a named Python image AppVar that can be opened with
+  ``ti_image.load_image(name)``. These uploads use compressed ``IM8C`` data,
+  and the file browser labels recognized uploads as ``Python Image (8)``.
 
-An image variable name must begin with a letter and contain one to eight
-uppercase letters, digits, or underscores. The dialog normalizes entered names
-to uppercase.
+If a RAM image upload is rejected with the firmware's invalid-payload response,
+the plugin retries the file in Archive and reports its actual location.
+
+Native Image names must be fixed slots. Python image AppVar names must begin
+with a letter and contain one to eight uppercase letters, digits, or
+underscores. The dialog normalizes entered names to uppercase.
 
 Use **Transfer settings** to control dimension reduction, maximum width and
 height, and palette size. The plugin preserves the aspect ratio. These settings

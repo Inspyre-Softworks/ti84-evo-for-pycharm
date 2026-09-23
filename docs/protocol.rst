@@ -342,13 +342,17 @@ Picture upload path
 -------------------
 
 Desktop raster images are resized with their aspect ratio intact, quantized to
-a configurable palette, converted to RGB565, and encoded as run-length-compressed
-``IM8C`` data inside a type-8 Evo AppVar envelope. The converter reduces the
-dimensions further when necessary to fit the format's 16-bit image-length field.
+a configurable palette, and encoded in one of two calculator formats. Native
+Image uploads use the calculator's fixed 160×105 little-endian RGB565 type-5
+Image payload for ``Image1`` through ``Image9`` and ``Image0``. Python image
+AppVar uploads are converted to RGB565 and encoded as run-length-compressed
+``IM8C`` data inside a type-8 Evo AppVar envelope; the converter reduces the
+dimensions further when necessary to fit the IM8C format's 16-bit image-length
+field.
 The IM8C header stores 24-bit little-endian width and height, palette version,
 alpha metadata, an 8-bit palette count, RGB565 palette entries, and the RLE
 pixel stream. The complete Evo variable file receives its native checksum
-before upload. Firmware 7.0 rejects this variable class in RAM, so a rejected
+before upload. Firmware can reject an image variable class in RAM, so a rejected
 RAM transfer is retried in Archive.
 The settings live in PyCharm's user-level ``ti84-evo.xml`` rather than a project
 manifest. Native ``.8ci2``, ``.8ca2``, and ``.8xv2`` files bypass conversion.

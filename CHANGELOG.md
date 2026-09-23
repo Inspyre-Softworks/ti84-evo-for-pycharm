@@ -7,6 +7,7 @@
 - Add UI-independent SmartPad descriptor, device-mode, report, key-event, and monitor models with coverage for press/release transitions, held and multiple keys, modifier chords, unknown usages, malformed reports, and optional Report IDs.
 - Confirm on physical OS 7.1 hardware that active SmartPad HID and the existing CDC/Kermit resource protocol operate simultaneously without replacing or modifying the known-good Kermit implementation.
 - Add the read-only `diagnose-resources` CLI command to preserve raw CBOR responses, lossless decoded values, unknown fields, SHA-256 hashes, directory data, and optional screen resources for future firmware comparison.
+- Offer converted picture uploads as either native Image variables or Python image AppVars.
 
 ## 0.4.2
 
