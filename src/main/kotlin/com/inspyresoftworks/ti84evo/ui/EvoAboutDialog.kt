@@ -7,6 +7,7 @@ import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
+import com.inspyresoftworks.ti84evo.settings.EvoApplicationSettings
 import java.awt.BorderLayout
 import java.awt.FlowLayout
 import java.awt.datatransfer.StringSelection
@@ -14,13 +15,17 @@ import javax.swing.Action
 import javax.swing.BoxLayout
 import javax.swing.JButton
 import javax.swing.JComponent
+import javax.swing.JCheckBox
 import javax.swing.JPanel
+import javax.swing.JSeparator
 
 internal class EvoAboutDialog(
     project: Project,
     versionStatus: EvoVersionStatus,
     private val pluginId: String,
-    private val mischiefMode: Boolean,
+    private var mischiefMode: Boolean,
+    private val settings: EvoApplicationSettings,
+    private val recheckLock: () -> Boolean,
     private val retryMarketplaceValidation: () -> Unit,
     private val debugInfo: (EvoVersionStatus) -> String,
     private val openInstalledPluginDirectory: () -> Unit,
@@ -31,6 +36,8 @@ internal class EvoAboutDialog(
     private val retryButton = JButton("Retry Marketplace Validation").apply {
         addActionListener { retryMarketplaceValidation() }
     }
+    private var developerControls: JPanel? = null
+    private val lockStatus = JBLabel(" ")
 
     init {
         title = "About TI-84 Evo"
@@ -56,14 +63,32 @@ internal class EvoAboutDialog(
                 JButton("Copy Debug Info").apply { addActionListener { copyDebugInfo() } },
             ))
             add(buttonRow(retryButton))
-            if (mischiefMode) {
+            developerControls = JPanel().apply {
+                layout = BoxLayout(this, BoxLayout.Y_AXIS)
                 add(buttonRow(
                     JButton("Submit Issue/Bug").apply { addActionListener { BrowserUtil.browse(ISSUES_URL) } },
                     JButton("Open Installed Plugin Directory").apply {
                         addActionListener { openInstalledPluginDirectory() }
                     },
                 ))
+                add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 2)).apply {
+                    add(JCheckBox("Always Show Changelog", settings.snapshot(true).alwaysShowChangelog).apply {
+                        addActionListener { settings.setAlwaysShowChangelog(isSelected) }
+                    })
+                })
+                isVisible = mischiefMode
             }
+            add(developerControls)
+            add(JSeparator())
+            add(buttonRow(JButton("Re-check Marauders Lock").apply {
+                addActionListener {
+                    mischiefMode = recheckLock()
+                    developerControls?.isVisible = mischiefMode
+                    lockStatus.text = if (mischiefMode) "Marauders Lock active." else "No valid Marauders Lock found."
+                    developerControls?.revalidate()
+                }
+            }))
+            add(lockStatus)
         }, BorderLayout.SOUTH)
     }
 

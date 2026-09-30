@@ -1,7 +1,8 @@
 Protocol overview
 =================
 
-The OS 7.1 SmartPad HID work is kept separate from this CDC/Kermit stack. See
+The OS 7.1 :term:`SmartPad` :term:`HID` work is kept separate from this
+:term:`CDC`/:term:`Kermit` stack. See
 :doc:`smartpad` for the captured composite USB descriptors, HID report model,
 raw-capture tooling, and current unknowns.
 
@@ -208,24 +209,26 @@ Read path
 
 The :term:`resource` path uses the observed
 :term:`transaction ladder`. It supports resource requests such as
-``hh01/get/hh01/sys/attributes`` and ``hh01/get/hh01/sys/screen``. Screen data is
+``hh01/get/hh01/sys/attributes`` and ``hh01/get/hh01/sys/screen`` in the
+:term:`hh01` namespace. Screen data is
 decoded from the Evo run encoding and converted from little-endian
 :term:`RGB565` to a Java image. The file browser reads
-``hh01/get/hh01/inf/res?name=directory&gotohome=1`` and decodes the returned
+``hh01/get/hh01/inf/res?name=directory`` and decodes the returned
 :term:`CBOR` entries, including Evo :term:`tokenized name` values and memory
-locations. Directory transfers use a zero length as an unknown-size sentinel
+locations. The directory is a :term:`dynamic resource`: its transfers use a zero
+length as an unknown-size sentinel
 and apply Kermit :term:`control quoting` and :term:`repeat encoding` across
 their :term:`D frame` payloads; the reader decodes the complete wire stream
 before parsing CBOR.
 
 Individual variables are downloaded through
 ``hh01/get/hh01/xfr/var?name=...&type=...``. The complete CBOR envelope can be
-inspected and exported with the Evo checksum restored. Native number, list, and
+inspected and exported with the Evo :term:`checksum` restored. Native number, list, and
 matrix payloads are decoded into editable real, fraction, complex, and tabular
 text. Creation/replacement uses the firmware's type-60 ASCII import envelope, so
 the calculator remains responsible for encoding edited values back to native form.
 
-Saving an existing RAM variable to Archive downloads that envelope, restores
+Saving an existing :term:`RAM` variable to :term:`Archive` downloads that envelope, restores
 the two-byte Evo file checksum, and uploads it through
 ``hh01/xfr/var?memtarget=1&policy=1``. The client then reads the directory again
 and requires the same tokenized name and type to appear in Archive.
@@ -261,7 +264,7 @@ delete path shares the proven upload encoder used by normal variable transfers.
 
 An acknowledged transaction is not sufficient evidence of deletion. After
 every attempt, the client closes and reopens the serial session, reads
-``hh01/get/hh01/inf/res?name=directory&gotohome=1``, and searches for the same
+``hh01/get/hh01/inf/res?name=directory``, and searches for the same
 tokenized name and type ID. The operation reports progress—and the plugin
 removes its table row—only when that entry is absent. This check also handles a
 timeout after the calculator applied the request but before it returned the
@@ -341,11 +344,14 @@ fingerprint is unchanged. The PyCharm plugin and CLI share this decision logic.
 Picture upload path
 -------------------
 
-Desktop raster images are resized with their aspect ratio intact, quantized to
-a configurable palette, and encoded in one of two calculator formats. Native
+Desktop raster images are encoded in one of two calculator formats. Native
 Image uploads use the calculator's fixed 160×105 little-endian RGB565 type-5
-Image payload for ``Image1`` through ``Image9`` and ``Image0``. Python image
-AppVar uploads are converted to RGB565 and encoded as run-length-compressed
+Image payload for ``Image1`` through ``Image9`` and ``Image0``. They use the
+exported-sample marker ``0x16`` followed by rows ordered bottom-to-top and
+pixels ordered left-to-right. Sources are center-cropped to fill the canvas
+without stretching, then progressively downsampled with bicubic interpolation.
+Python image AppVar uploads preserve aspect ratio, are quantized to a
+configurable RGB565 palette, and encoded as run-length-compressed
 ``IM8C`` data inside a type-8 Evo AppVar envelope; the converter reduces the
 dimensions further when necessary to fit the IM8C format's 16-bit image-length
 field.
@@ -363,3 +369,6 @@ The protocol code is independently implemented in Kotlin. The public
 reference during development and is not a runtime dependency.
 The public `TI-Planet img2calc IM8C encoder
 <https://github.com/TI-Planet/img2calc>`_ was used as the image-format reference.
+The `tivars_lib_cpp Evo background format notes
+<https://github.com/adriweb/tivars_lib_cpp/blob/evo/evo-doc/8ca2-background-image.md>`_
+document the native image marker, dimensions, and bottom-up scanline order.

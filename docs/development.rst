@@ -78,6 +78,33 @@ Use the wrapper for your platform:
 Set ``JAVA_HOME`` only if JDK 25 is not already selected. Generated
 distributions are written to ``build/distributions``.
 
+Screen capture rate probe
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Build the CLI JAR, then run the read-only screen probe with the official
+calculator software closed so the CDC port is available::
+
+   .\gradlew.bat cliJar
+   java --enable-native-access=ALL-UNNAMED -cp build/libs/ti84-evo-cli.jar scripts/utils/EvoScreenBenchmark.java --seconds 15
+
+Add ``--preview`` for a live, two-times-size display. Add
+``--save-dir captures/screen-rate-1`` to save PNG frames and ``frames.csv`` in
+a new directory; recording PNGs also measures disk encoding time. Move through
+calculator screens during the run to measure changing frames. The probe keeps
+one serial connection open and reports achieved frames per second, capture
+latency, frame gaps, and how many consecutive framebuffers differ. Its frame
+rate measures capture and rendering, not video encoding or network streaming.
+
+Use ``--continuous --preview`` to keep the preview open until its window is
+closed or Enter is pressed in the launching terminal. Combine it with
+``--save-dir NEW_DIRECTORY --mp4`` to record continuously. The recording writes
+numbered PNGs and ``frames.csv`` during capture, then creates ``capture.mp4``
+after stopping. The MP4 uses a four-frames-per-second timeline aligned to the
+measured frame times. Encoding happens after capture, so a long recording can
+take additional time to finalize. JCodec is bundled; FFmpeg is not required.
+If the process ends before MP4 finalization, the flushed PNGs and CSV remain;
+run ``--encode-dir EXISTING_RECORDING`` to build the MP4 from them later.
+
 CI also runs plugin-configuration and binary-compatibility verification in
 addition to a clean test and package build.
 
@@ -108,52 +135,63 @@ The generated site starts at ``docs/_build/html/index.html``. Dependencies are
 reinstalled only when ``docs/requirements.txt`` changes or the environment
 fails its import check.
 
+Link the first useful mention of a defined glossary term on each page with the
+Sphinx ``:term:`` role. These links go to :doc:`glossary` and show definition
+tooltips in the HTML site. Keep code examples and unrelated uses of the same
+word as plain text.
+
 SmartPad diagnostic workflow
 ----------------------------
 
-SmartPad investigation is deliberately separate from production PyCharm UI
-and the CDC/Kermit implementation. Install its optional Python dependencies
-from a repository checkout:
+:term:`SmartPad` investigation is deliberately separate from production PyCharm UI
+and the :term:`CDC`/:term:`Kermit` implementation.
+
+The standalone calculator utilities and their test/dependency files live under
+``scripts/utils``. With :term:`Marauders Lock` active, the installed plugin also shows
+**Developer utilities** in the TI-84 Evo toolbar. That window bundles the
+scripts, shows output, and stops the active utility when closed.
+
+Install the optional Python dependencies from a repository checkout:
 
 .. code-block:: powershell
 
-   py -m pip install -r scripts\requirements-smartpad.txt
-   py scripts\smartpad_usb.py --help
+   py -m pip install -r scripts\utils\requirements-smartpad.txt
+   py scripts\utils\smartpad_usb.py --help
 
 The main read-only workflows are:
 
 .. code-block:: powershell
 
    # Snapshot complete USB/HID identity.
-   py scripts\smartpad_usb.py snapshot `
+   py scripts\utils\smartpad_usb.py snapshot `
      --label home-connected --output captures\smartpad\home
 
    # Compare two previously saved snapshots.
-   py scripts\smartpad_usb.py compare `
+   py scripts\utils\smartpad_usb.py compare `
      captures\smartpad\home\usb-snapshot.json `
      captures\smartpad\active\usb-snapshot.json
 
    # Decode an existing capture without connected hardware.
-   py scripts\smartpad_usb.py pcap-decode `
+   py scripts\utils\smartpad_usb.py pcap-decode `
      captures\smartpad\active\calculator-only.pcapng `
      --output captures\smartpad\active\reports.log
 
-Windows raw capture requires USBPcap, normally installed with Wireshark.
+Windows raw capture requires :term:`USBPcap`, normally installed with Wireshark.
 ``usbpcap-monitor`` filters the saved result to the calculator's current USB
-address and endpoint ``84``; its temporary root-bus trace is discarded. The
+address and USB endpoint ``84``; its temporary root-bus trace is discarded. The
 ordinary ``monitor`` command uses hidapi and may be unavailable when Windows'
 keyboard driver exclusively owns the interface.
 
 ``probe`` inspects descriptor-defined output and Feature layouts without
 writing. The only write-capable diagnostic is ``led-output``; it accepts only
 the standard five keyboard-LED bits and requires ``--confirm``. Do not add
-arbitrary HID writes or inferred ``hh01`` probes to automated diagnostics.
+arbitrary :term:`HID` writes or inferred :term:`hh01` probes to automated diagnostics.
 
 Run the standalone diagnostic tests alongside the normal Gradle suite:
 
 .. code-block:: powershell
 
-   py -m unittest scripts\test_smartpad_usb.py
+   py -m unittest scripts\utils\test_smartpad_usb.py
    .\gradlew.bat check --no-daemon
 
 See :doc:`smartpad` for evidence labels, exact descriptors, report layouts,
@@ -189,7 +227,11 @@ Release checklist:
 
 1. Update the semantic version in ``VERSION``.
 2. Add an exact ``## <version>`` section with release-note bullets to
-   ``CHANGELOG.md``.
+   ``CHANGELOG.md``. Starting with 0.6.0, begin each bullet with one of
+   ``[Feature - Production]``, ``[Feature - Dev]``, ``[Bugfix]``,
+   ``[Enhance]``, ``[Code Clean]``, or ``[Docs]``. The build validates these
+   tags for the current version; older release sections retain their original
+   wording.
 3. Run ``test``, ``buildPlugin``, ``cliDistZip``,
    ``verifyPluginProjectConfiguration``, and ``verifyPlugin``.
 4. Push the release commit to ``main``.
@@ -221,7 +263,7 @@ Host-side tests validate codecs, payloads, state handling, and transaction
 logic, but they cannot prove USB timing or calculator firmware behavior.
 
 Release 0.4.2 passed the complete backup, mixed-target project round trip,
-calculator-side mutation recovery, editable-variable, Archive, image, and
+calculator-side mutation recovery, editable-variable, :term:`Archive`, image, and
 screenshot matrix on a physical TI-84 Evo running OS ``7.0.0.3996`` from a
 Windows 11 host. See :doc:`hardware-acceptance` for the sanitized configuration,
 results, firmware-specific behavior, evidence files, and repeatable commands.

@@ -7,7 +7,7 @@ import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
 
-/** Converts a desktop image to the Evo's compressed IM8C image envelopes. */
+/** Converts desktop images to native RGB565 backgrounds or compressed IM8C AppVars. */
 object EvoImagePayload {
     enum class Format(val typeId: Int, val label: String) {
         NATIVE_IMAGE(5, "Image"),
@@ -167,27 +167,49 @@ object EvoImagePayload {
     private data class Color(val r: Int, val g: Int, val b: Int, val count: Int)
 
     private fun fitNativeImage(source: BufferedImage): BufferedImage {
+        // Fill the graph background without stretching or adding letterbox borders.
+        val scale = maxOf(
+            NATIVE_IMAGE_WIDTH.toDouble() / source.width,
+            NATIVE_IMAGE_HEIGHT.toDouble() / source.height,
+        )
+        val cropWidth = (NATIVE_IMAGE_WIDTH / scale).roundToInt().coerceIn(1, source.width)
+        val cropHeight = (NATIVE_IMAGE_HEIGHT / scale).roundToInt().coerceIn(1, source.height)
+        var image = source.getSubimage(
+            (source.width - cropWidth) / 2, (source.height - cropHeight) / 2, cropWidth, cropHeight,
+        )
+        // Progressive reduction averages fine detail instead of sampling only a few
+        // source pixels in a single large reduction (which aliases photos and patterns).
+        while (image.width > NATIVE_IMAGE_WIDTH || image.height > NATIVE_IMAGE_HEIGHT) {
+            image = resizeNativeImage(
+                image,
+                maxOf(NATIVE_IMAGE_WIDTH, image.width / 2),
+                maxOf(NATIVE_IMAGE_HEIGHT, image.height / 2),
+            )
+        }
         val target = BufferedImage(NATIVE_IMAGE_WIDTH, NATIVE_IMAGE_HEIGHT, BufferedImage.TYPE_INT_RGB)
         val graphics = target.createGraphics()
         graphics.color = java.awt.Color.WHITE
         graphics.fillRect(0, 0, target.width, target.height)
-        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
         graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
-        val scale = minOf(
-            NATIVE_IMAGE_WIDTH.toDouble() / source.width,
-            NATIVE_IMAGE_HEIGHT.toDouble() / source.height,
-        )
-        val width = (source.width * scale).roundToInt().coerceIn(1, NATIVE_IMAGE_WIDTH)
-        val height = (source.height * scale).roundToInt().coerceIn(1, NATIVE_IMAGE_HEIGHT)
-        graphics.drawImage(source, (NATIVE_IMAGE_WIDTH - width) / 2, (NATIVE_IMAGE_HEIGHT - height) / 2, width, height, null)
+        graphics.drawImage(image, 0, 0, target.width, target.height, null)
         graphics.dispose()
         return target
     }
 
+    private fun resizeNativeImage(source: BufferedImage, width: Int, height: Int): BufferedImage =
+        BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB).also { target ->
+            val graphics = target.createGraphics()
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+            graphics.drawImage(source, 0, 0, width, height, null)
+            graphics.dispose()
+        }
+
     private fun encodeNativeImage(image: BufferedImage): ByteArray {
         val out = ByteArrayOutputStream()
         out.write(NATIVE_IMAGE_MARKER)
-        for (y in 0 until NATIVE_IMAGE_HEIGHT) {
+        // .8ca2 stores the bottom scanline first, with pixels left-to-right.
+        for (y in NATIVE_IMAGE_HEIGHT - 1 downTo 0) {
             for (x in 0 until NATIVE_IMAGE_WIDTH) {
                 out.writeUInt16Le(toRgb565(image.getRGB(x, y)))
             }
@@ -411,7 +433,7 @@ object EvoImagePayload {
     private const val PYTHON_IMAGE_APPVAR_TYPE = 8
     private const val NATIVE_IMAGE_WIDTH = 160
     private const val NATIVE_IMAGE_HEIGHT = 105
-    private const val NATIVE_IMAGE_MARKER = 0x81
+    private const val NATIVE_IMAGE_MARKER = 0x16 // Evo exported images; 0x81 is the legacy CE marker.
     private const val NATIVE_IMAGE_COLORS = 65536
     private const val IMAGE_FIRST_TOKEN = 0xE8B0
     private const val IMAGE_ZERO_TOKEN = 0xE8B9

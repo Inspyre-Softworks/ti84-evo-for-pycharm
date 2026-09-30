@@ -2,7 +2,7 @@ Multi-file projects
 ===================
 
 A TI-84 Evo project maps local Python files to calculator program names and a
-RAM or Archive target. The plugin stores that mapping in
+:term:`RAM` or :term:`Archive` target. The plugin stores that mapping in
 ``.ti84-evo-project`` at the project root.
 
 Configure a project

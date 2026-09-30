@@ -65,10 +65,77 @@ class EvoImagePayloadTest {
         assertContentEquals(byteArrayOf(0xB7.toByte(), 0xE8.toByte()), metadata["name"] as ByteArray)
         val data = envelope["data"] as ByteArray
         assertEquals(33601, data.size)
-        assertEquals(0x81, data[0].toInt() and 0xFF)
-        assertEquals(0xFF, data[1].toInt() and 0xFF)
-        assertEquals(0xFF, data[2].toInt() and 0xFF)
+        assertEquals(0x16, data[0].toInt() and 0xFF)
+        // The wide source fills the background instead of acquiring white bars.
+        for (offset in 1 until data.size step 2) {
+            assertEquals(0xDBC2, readUInt16Le(data, offset))
+        }
     }
+
+    @Test
+    fun `native background stores bottom row first without mirroring columns`() {
+        val source = BufferedImage(160, 105, BufferedImage.TYPE_INT_RGB).apply {
+            setRGB(0, 0, Color.RED.rgb)
+            setRGB(159, 0, Color.GREEN.rgb)
+            setRGB(0, 104, Color.BLUE.rgb)
+            setRGB(159, 104, Color.WHITE.rgb)
+        }
+        val data = nativeData(source)
+        assertEquals(0x001F, readUInt16Le(data, 1))
+        assertEquals(0xFFFF, readUInt16Le(data, 1 + 159 * 2))
+        assertEquals(0xF800, readUInt16Le(data, 1 + 104 * 160 * 2))
+        assertEquals(0x07E0, readUInt16Le(data, 1 + (105 * 160 - 1) * 2))
+    }
+
+    @Test
+    fun `native backgrounds center crop wide and tall sources`() {
+        for ((width, height) in listOf(320 to 105, 160 to 315)) {
+            val source = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB).apply {
+                val graphics = createGraphics()
+                graphics.color = Color.RED
+                graphics.fillRect(0, 0, width, height)
+                graphics.color = Color.GREEN
+                graphics.fillRect((width - 160) / 2, (height - 105) / 2, 160, 105)
+                graphics.dispose()
+            }
+            val data = nativeData(source)
+            for (offset in 1 until data.size step 2) {
+                assertEquals(0x07E0, readUInt16Le(data, offset))
+            }
+        }
+    }
+
+    @Test
+    fun `large reductions preserve average brightness of fine detail`() {
+        // A single-pass reduction samples the black centers and misses the white
+        // lines; a filtered reduction should retain their one-quarter coverage.
+        val source = BufferedImage(1280, 840, BufferedImage.TYPE_INT_RGB).apply {
+            for (y in 0 until height) for (x in 0 until width) {
+                setRGB(x, y, if (x % 8 < 2) Color.WHITE.rgb else Color.BLACK.rgb)
+            }
+        }
+        val data = nativeData(source)
+        val interior = (10 until 150).map { x -> readUInt16Le(data, 1 + (50 * 160 + x) * 2) }
+        val averageRed = interior.map { (it shr 11) * 255.0 / 31 }.average()
+        assertTrue(averageRed in 50.0..80.0, "Expected quarter-white detail, got $averageRed")
+    }
+
+    @Test
+    fun `small transparent backgrounds upscale onto white`() {
+        val source = BufferedImage(16, 10, BufferedImage.TYPE_INT_ARGB)
+        val data = nativeData(source)
+        for (offset in 1 until data.size step 2) {
+            assertEquals(0xFFFF, readUInt16Le(data, offset))
+        }
+    }
+
+    private fun nativeData(source: BufferedImage): ByteArray {
+        val built = EvoImagePayload.build(source, "Image1", true, format = EvoImagePayload.Format.NATIVE_IMAGE)
+        return (CborReader(built.bytes).readComplete() as Map<*, *>)["data"] as ByteArray
+    }
+
+    private fun readUInt16Le(data: ByteArray, offset: Int): Int =
+        (data[offset].toInt() and 0xFF) or ((data[offset + 1].toInt() and 0xFF) shl 8)
 
     @Test
     fun `non image AppVar is not reported as a Python image`() {

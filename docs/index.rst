@@ -46,7 +46,7 @@ Start here
       :link: smartpad
       :link-type: doc
 
-      Review OS 7.1 USB/HID findings, the physical key map, and diagnostics.
+      Review OS 7.1 :term:`SmartPad` USB/:term:`HID` findings, the physical key map, and diagnostics.
 
 Choose a route
 --------------

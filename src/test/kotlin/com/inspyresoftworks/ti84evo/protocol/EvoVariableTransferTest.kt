@@ -87,7 +87,7 @@ class EvoVariableTransferTest {
     }
 
     private fun directoryRead(vararg entries: ByteArray): List<ByteArray> {
-        val request = buildGetRequest("hh01/inf/res?name=directory&gotohome=1").decodeToString()
+        val request = buildGetRequest("hh01/inf/res?name=directory").decodeToString()
         val payload = cborMap("data" to cborArray(*entries))
         return resourceRead(request, payload)
     }

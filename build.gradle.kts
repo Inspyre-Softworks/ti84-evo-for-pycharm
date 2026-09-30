@@ -26,10 +26,17 @@ val marketplaceChangeNotes = run {
     val start = lines.indexOf(heading)
     require(start >= 0) { "CHANGELOG.md must contain a $heading section for Marketplace update notes" }
     val section = lines.drop(start + 1).takeWhile { !it.startsWith("## ") }
+    val releaseNoteTag = Regex("^\\[(Feature - Production|Feature - Dev|Bugfix|Enhance|Code Clean|Docs)] \\S")
     val bullets = mutableListOf<StringBuilder>()
     for (line in section) {
         when {
-            line.startsWith("- ") -> bullets.add(StringBuilder(line.removePrefix("- ")))
+            line.startsWith("- ") -> {
+                val note = line.removePrefix("- ")
+                require(releaseNoteTag.containsMatchIn(note)) {
+                    "$heading release notes must begin with a supported bracketed tag: $line"
+                }
+                bullets.add(StringBuilder(note))
+            }
             line.startsWith("  ") && bullets.isNotEmpty() -> bullets.last().append(' ').append(line.trim())
         }
     }
@@ -84,6 +91,8 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
     implementation("com.fazecast:jSerialComm:2.11.4")
+    runtimeOnly("org.jcodec:jcodec:0.2.5")
+    runtimeOnly("org.jcodec:jcodec-javase:0.2.5")
 
     intellijPlatform {
         pycharm("2026.2.1")
@@ -121,7 +130,11 @@ val cliJar = tasks.register<Jar>("cliJar") {
     }
     from(
         configurations.runtimeClasspath.get()
-            .filter { it.name.startsWith("kotlin-stdlib") || it.name.startsWith("jSerialComm") }
+            .filter {
+                it.name.startsWith("kotlin-stdlib") ||
+                    it.name.startsWith("jSerialComm") ||
+                    it.name.startsWith("jcodec")
+            }
             .map(::zipTree),
     )
     exclude("META-INF/*.SF", "META-INF/*.RSA", "META-INF/*.DSA")
@@ -129,12 +142,17 @@ val cliJar = tasks.register<Jar>("cliJar") {
 
 tasks.register<Zip>("cliDistZip") {
     group = "distribution"
-    description = "Packages the standalone sender and PowerShell launcher"
+    description = "Packages the standalone sender, PowerShell launcher, and SmartPad macro pad"
     dependsOn(cliJar)
     archiveFileName.set("ti84-evo-cli-${project.version}.zip")
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
     from(cliJar)
     from("src/cli/scripts/ti84-evo.ps1")
+    from("scripts/utils/smartpad_macropad.py") { into("scripts/utils") }
+    from("scripts/utils/EvoScreenBenchmark.java") { into("scripts/utils") }
+    from("scripts/utils/smartpad_usb.py") { into("scripts/utils") }
+    from("scripts/utils/requirements-smartpad.txt") { into("scripts/utils") }
+    from("third-party/JCodec-LICENSE.txt") { into("licenses") }
 }
 
 kotlin {
@@ -145,9 +163,20 @@ kotlin {
 }
 
 tasks.processResources {
+    from("third-party/JCodec-LICENSE.txt") {
+        into("META-INF")
+    }
+    from("scripts/utils") {
+        include("EvoScreenBenchmark.java", "smartpad_macropad.py", "smartpad_usb.py", "requirements-smartpad.txt")
+        into("utils")
+    }
     from(layout.projectDirectory.file("VERSION")) {
         into("META-INF")
         rename { "ti84-evo-version.txt" }
+    }
+    from(layout.projectDirectory.file("CHANGELOG.md")) {
+        into("META-INF")
+        rename { "ti84-evo-changelog.md" }
     }
     from(layout.projectDirectory.file("LICENSE")) {
         into("META-INF")

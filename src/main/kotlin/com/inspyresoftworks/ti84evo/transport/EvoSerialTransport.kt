@@ -5,7 +5,6 @@ import com.inspyresoftworks.ti84evo.protocol.EvoFrameException
 import com.inspyresoftworks.ti84evo.protocol.EvoProtocolException
 import com.inspyresoftworks.ti84evo.protocol.EvoTimeoutException
 import com.inspyresoftworks.ti84evo.protocol.KermitPacketCodec
-import kotlin.math.max
 
 /**
  * jSerialComm-backed CDC transport for the TI-84 Evo.
@@ -29,9 +28,10 @@ class EvoSerialTransport(
             SerialPort.NO_PARITY,
         )
         port.setFlowControl(SerialPort.FLOW_CONTROL_DISABLED)
+        // Reconfiguring an open COM port for every packet fragment makes large reads slow.
         port.setComPortTimeouts(
             SerialPort.TIMEOUT_READ_BLOCKING or SerialPort.TIMEOUT_WRITE_BLOCKING,
-            timeoutMillis,
+            minOf(timeoutMillis, READ_TIMEOUT_SLICE_MILLIS),
             timeoutMillis,
         )
 
@@ -70,13 +70,6 @@ class EvoSerialTransport(
             if (remainingNanos <= 0L) {
                 throw EvoTimeoutException("timed out after $offset/$size bytes")
             }
-
-            val remainingMillis = max(1, (remainingNanos / 1_000_000L).toInt())
-            port.setComPortTimeouts(
-                SerialPort.TIMEOUT_READ_BLOCKING or SerialPort.TIMEOUT_WRITE_BLOCKING,
-                remainingMillis,
-                timeoutMillis,
-            )
 
             val count = port.readBytes(output, size - offset, offset)
             if (count < 0) {
@@ -121,6 +114,7 @@ class EvoSerialTransport(
     }
 
     companion object {
+        private const val READ_TIMEOUT_SLICE_MILLIS = 250
         const val TI_VENDOR_ID = 0x0451
         const val TI84_EVO_PRODUCT_ID = 0xE018
 

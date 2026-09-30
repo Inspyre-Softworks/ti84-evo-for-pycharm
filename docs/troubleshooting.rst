@@ -7,8 +7,8 @@ USB interface; there is no manual port selector.
 Calculator not detected
 -----------------------
 
-The plugin expects exactly one USB CDC device with Texas Instruments vendor ID
-``0451`` and TI-84 Evo product ID ``E018``.
+The plugin expects exactly one USB :term:`CDC` device with Texas Instruments
+:term:`VID` ``0451`` and TI-84 Evo :term:`PID` ``E018``.
 
 1. Wake the calculator and reconnect both ends of the cable.
 2. Try a known USB data cable and a different USB port. Avoid an unpowered hub.
@@ -25,7 +25,7 @@ Detected, but an operation times out
    attributes** as a read-only connection test.
 4. Retry the original action once.
 
-For a partial project, Archive, delete, or pull failure, read the operation
+For a partial project, :term:`Archive`, delete, or pull failure, read the operation
 output before retrying. Completed items are recorded individually and are
 identified in the failure details.
 
@@ -62,25 +62,29 @@ count.
 SmartPad diagnostic problems
 ----------------------------
 
-The 0.5.0 SmartPad code is a protocol/diagnostic foundation, not an enabled
-global-keyboard feature in the PyCharm plugin. Run it from a source checkout as
-described in :doc:`smartpad` and :doc:`development`.
+The production plugin does not bind calculator keys to IDE actions. Release
+0.6.0 includes an optional Windows macro pad that registers selected :term:`SmartPad`
+key chords as global hotkeys. It can be run from a source checkout as described
+in :doc:`smartpad`, or opened through **Developer utilities** in the installed
+plugin after enabling :doc:`marauders-lock`.
 
-If the HID interface is listed but no raw reports arrive, confirm that the
+If the :term:`HID` interface is listed but no raw reports arrive, confirm that the
 SmartPad application is actually open. OS 7.1 enumerates the HID boot-keyboard
 interface even on the ordinary home screen, so interface presence alone does
 not mean SmartPad is active.
 
 On Windows, the operating-system keyboard driver may prevent hidapi from
-opening the interface. Use ``usbpcap-monitor`` with USBPcap/Wireshark instead;
-it records raw endpoint ``84`` reports without replacing the keyboard driver.
+opening the interface. Use ``usbpcap-monitor`` with :term:`USBPcap`/Wireshark instead;
+it records raw USB endpoint ``84`` reports without replacing the keyboard driver.
 If no USBPcap capture root is available, rerun the Wireshark installer and
 enable its USBPcap component.
 
 Calculator keys can also produce text or shortcuts in the focused Windows
 application because the device is a standard keyboard. Focus a disposable text
-field while testing, close SmartPad when finished, and do not bind calculator
-keys globally. Never publish an unfiltered root-bus capture: it can include
+field while testing and close SmartPad when finished. If using the optional
+macro pad, stop it when finished; global hotkeys match key chords rather than
+the physical calculator, so another keyboard can trigger a mapping. Never
+publish an unfiltered root-bus capture: it can include
 traffic from unrelated USB devices. The supplied capture command retains only
 the calculator's device address in its requested output file.
 

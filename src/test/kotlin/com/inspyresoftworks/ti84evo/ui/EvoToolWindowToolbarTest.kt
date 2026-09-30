@@ -4,6 +4,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import javax.swing.JPanel
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNotSame
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -23,6 +24,7 @@ class EvoToolWindowToolbarTest : BasePlatformTestCase() {
                 configureTransfers = {},
                 pushProject = {},
                 pullProject = {},
+                showDeveloperTools = {},
                 showAbout = {},
             ),
         )
@@ -43,6 +45,7 @@ class EvoToolWindowToolbarTest : BasePlatformTestCase() {
                 "Pull project",
                 "Configure project",
                 "Transfer settings",
+                "Developer utilities",
                 "About TI-84 Evo",
             ),
             actions.mapTo(mutableSetOf()) { it.templatePresentation.text },
@@ -54,5 +57,7 @@ class EvoToolWindowToolbarTest : BasePlatformTestCase() {
                 "${action.templatePresentation.text} needs a tooltip description",
             )
         }
+        val iconsByAction = actions.associate { it.templatePresentation.text to it.templatePresentation.icon }
+        assertNotSame(iconsByAction["Transfer settings"], iconsByAction["Developer utilities"])
     }
 }

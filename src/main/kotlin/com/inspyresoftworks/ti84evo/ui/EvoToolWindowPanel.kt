@@ -6,10 +6,12 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.ide.CopyPasteManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.InputValidator
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.actionSystem.ActionToolbar
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTabbedPane
@@ -81,6 +83,8 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
     private val installedPluginVersion = EvoBuildInfo.version
     private var versionStatus = EvoVersionStatus.checking(installedPluginVersion)
     private var aboutDialog: EvoAboutDialog? = null
+    private var developerToolsDialog: EvoDeveloperToolsDialog? = null
+    private val toolbar: ActionToolbar
     private val status = JBLabel("Not checked", AllIcons.General.Information, JBLabel.LEADING)
     private val version = JBLabel(
         versionStatus.footerText,
@@ -111,6 +115,11 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         toolTipText = "Save the full-resolution calculator screenshot in the project directory"
         addActionListener { saveScreenshotToProject() }
     }
+    private val copyScreenButton = JButton("Copy Image to Clipboard").apply {
+        isEnabled = false
+        toolTipText = "Copy the full-resolution calculator screenshot as an image"
+        addActionListener { copyScreenshotToClipboard() }
+    }
     private val saveScreenAsMenuItem = JMenuItem("Save As…", AllIcons.Actions.MenuSaveall).apply {
         isEnabled = false
         addActionListener { saveScreenshotAs() }
@@ -119,7 +128,13 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         isEnabled = false
         addActionListener { saveScreenshotToProject() }
     }
+    private val copyScreenMenuItem = JMenuItem("Copy Image to Clipboard").apply {
+        isEnabled = false
+        addActionListener { copyScreenshotToClipboard() }
+    }
     private val screenPopupMenu = JPopupMenu().apply {
+        add(copyScreenMenuItem)
+        addSeparator()
         add(saveScreenAsMenuItem)
         add(saveScreenToProjectMenuItem)
     }
@@ -171,11 +186,12 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         isOpaque = false
         add(screenPane, BorderLayout.CENTER)
         add(
-            JPanel(GridLayout(1, 2, 8, 0)).apply {
+            JPanel(GridLayout(1, 3, 8, 0)).apply {
                 isOpaque = false
                 border = JBUI.Borders.emptyTop(4)
                 add(saveScreenAsButton)
                 add(saveScreenToProjectButton)
+                add(copyScreenButton)
             },
             BorderLayout.SOUTH,
         )
@@ -222,7 +238,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
             }
         })
 
-        val toolbar = EvoToolWindowToolbar.create(
+        toolbar = EvoToolWindowToolbar.create(
             this,
             EvoToolWindowActions(
                 refresh = ::refresh,
@@ -235,6 +251,7 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                 configureTransfers = ::configureTransfers,
                 pushProject = ::pushProject,
                 pullProject = ::pullProject,
+                showDeveloperTools = ::showDeveloperTools,
                 showAbout = ::showAbout,
             ),
         )
@@ -455,8 +472,17 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         val enabled = capturedScreenImage != null
         saveScreenAsButton.isEnabled = enabled
         saveScreenToProjectButton.isEnabled = enabled
+        copyScreenButton.isEnabled = enabled
         saveScreenAsMenuItem.isEnabled = enabled
         saveScreenToProjectMenuItem.isEnabled = enabled
+        copyScreenMenuItem.isEnabled = enabled
+    }
+
+    private fun copyScreenshotToClipboard() {
+        val image = capturedScreenImage ?: return
+        runCatching { CopyPasteManager.getInstance().setContents(EvoScreenshotTransferable(image)) }
+            .onSuccess { showStatus("Copied screenshot image to clipboard", StatusKind.READY) }
+            .onFailure(::showFailure)
     }
 
     private fun saveScreenshotAs() {
@@ -739,7 +765,12 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
             onEdt {
                 result.onSuccess { raw ->
                     showStatus("Read ${entry.name}", StatusKind.CONNECTED)
-                    val dialog = EvoVariableContentsDialog(project, entry, raw)
+                    val identifiedEntry = if (entry.type == 8 && EvoImagePayload.isPythonImageVariable(raw)) {
+                        entry.copy(displayTypeName = "Python Image")
+                    } else {
+                        entry
+                    }
+                    val dialog = EvoVariableContentsDialog(project, identifiedEntry, raw)
                     dialog.show()
                     if (dialog.shouldReplace) dialog.editableValue?.let(::replaceVariable)
                 }.onFailure { showFailure(it) }
@@ -833,7 +864,9 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
 
         val formatChoice = Messages.showDialog(
             project,
-            "Upload ${chooser.selectedFile.name} as a native Image variable or a Python image AppVar?",
+            "Upload ${chooser.selectedFile.name} as a native Image variable or a Python image AppVar?\n\n" +
+                "Image fills the graph background, cropping the edges to fit.\n" +
+                "AppVar keeps the whole image for use in Python.",
             "Upload Picture to TI-84 Evo",
             arrayOf("Image", "AppVar", "Cancel"),
             0,
@@ -1289,12 +1322,31 @@ class EvoToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         return Path.of(basePath).toAbsolutePath().normalize()
     }
 
+    private fun showDeveloperTools() {
+        if (!mischiefMode) return
+        val existing = developerToolsDialog
+        if (existing?.window?.isVisible == true) {
+            existing.window?.toFront()
+            return
+        }
+        EvoDeveloperToolsDialog(project).also { dialog ->
+            developerToolsDialog = dialog
+            dialog.show()
+        }
+    }
+
     internal fun showAbout() {
         val dialog = EvoAboutDialog(
             project = project,
             versionStatus = versionStatus,
             pluginId = EvoMarketplaceService.PLUGIN_ID,
             mischiefMode = mischiefMode,
+            settings = applicationSettings,
+            recheckLock = {
+                marketplaceService.settingsChanged()
+                toolbar.updateActionsImmediately()
+                EvoMischiefMode.isActive()
+            },
             retryMarketplaceValidation = marketplaceService::retryNow,
             debugInfo = { status ->
                 EvoDebugInfo.create(status, applicationSettings.snapshot(mischiefMode), mischiefMode)

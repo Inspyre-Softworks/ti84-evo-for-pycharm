@@ -66,7 +66,7 @@ Connect and verify
    :class: docs-screenshot
 
    A connected calculator after a successful screen capture. The status line
-   confirms both the connection and the captured framebuffer dimensions.
+   confirms both the connection and the captured :term:`framebuffer` dimensions.
 
 The attributes dialog groups the calculator details into readable categories.
 **Copy Attributes** places a Markdown report on the clipboard, including the
@@ -81,7 +81,7 @@ Upload your first Python file
 1. Open a ``.py`` file in the editor.
 2. Select **Upload current Python file** in the TI-84 Evo tool window.
 3. Enter a calculator program name containing one to eight letters or digits.
-4. Choose RAM or Archive and confirm the upload.
+4. Choose :term:`RAM` or :term:`Archive` and confirm the upload.
 
 The plugin reads the current editor document, so unsaved changes are included.
 It normalizes the calculator name to uppercase and replaces an existing Python
@@ -94,8 +94,9 @@ program with the same name.
    variable, image, and screenshot matrix on one physical TI-84 Evo and
    Windows 11 host; other firmware and host configurations still need testing.
    See :doc:`hardware-acceptance` for the accepted configuration.
-   Release 0.5.0 also documents OS 7.1 SmartPad USB/HID behavior, but does not
-   enable calculator keys as global IDE shortcuts; see :doc:`smartpad`.
+   Release 0.5.0 also documents OS 7.1 :term:`SmartPad` USB/:term:`HID` behavior. The production
+   plugin does not bind calculator keys to IDE actions. Release 0.6.0 includes
+   a separate, optional Windows macro pad; see :doc:`smartpad`.
 
 TI Python editor support
 ------------------------
@@ -110,12 +111,18 @@ type-aware inspections for these calculator modules:
 * ``ti_rover``
 * ``ti_system``
 
-The bundled ``.pyi`` files form an editor-only :term:`synthetic library`. They
+The bundled :term:`type stubs <type stub>` (``.pyi`` files) form an editor-only
+:term:`synthetic library`. They
 are not desktop implementations of the modules and are never uploaded to the
 calculator.
 
 Version status and diagnostics
 ------------------------------
+
+When the TI-84 Evo tool window first opens after a plugin version is installed,
+**What's New** shows the release notes for that version. Close the dialog to
+continue. The notes are also available in ``CHANGELOG.md`` in the project
+repository.
 
 The tool-window footer shows the installed plugin version. On startup and at a
 configurable interval, the plugin compares it with the public JetBrains
@@ -127,7 +134,8 @@ The About window can retry an unavailable Marketplace check and copy sanitized
 Markdown debug information. The check interval is available under **Transfer
 settings**; the normal minimum is 60 seconds and the default is one hour.
 Plugin developers who need expanded validation controls can use
-:doc:`marauders-lock`.
+:term:`Marauders Lock`. Once enabled, **Developer utilities** appears in the
+TI-84 Evo toolbar with screen capture probes and SmartPad tools.
 
 .. figure:: _static/screenshots/about-version-status.png
    :alt: About TI-84 Evo dialog showing plugin version and Marketplace verification status

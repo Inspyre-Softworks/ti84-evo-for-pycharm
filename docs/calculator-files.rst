@@ -3,11 +3,14 @@ Calculator files and images
 
 Open **Calculator Files** to manage variables on the connected calculator. The
 sortable table shows each decoded name and type, its byte size, and whether it
-is in RAM or Archive.
+is in :term:`RAM` or :term:`Archive`.
 
 The table refreshes when you open or click its tab and after successful
 variable, picture, Python, project, or Archive uploads. Existing selections are
 preserved when the same calculator entries are still present.
+The listing reads only the directory, so it leaves the calculator on its
+current screen. Python image :term:`AppVars <AppVar>` appear as **AppVar** in the table; opening
+one identifies it from its contents.
 
 .. figure:: _static/screenshots/calculator-file-browser.png
    :alt: Calculator Files tab listing calculator variables with their type size and location
@@ -102,8 +105,13 @@ Choose **Upload picture** and select one of these inputs:
 For desktop image conversion, choose the calculator format:
 
 * **Image** stores the upload in a fixed native image slot, ``Image1`` through
-  ``Image9`` or ``Image0``, using the calculator's fixed-size 160×105 RGB565
+  ``Image9`` or ``Image0``, using the calculator's fixed-size 160×105 :term:`RGB565`
   native image payload. The calculator directory reports it as ``Image (5)``.
+  Images fill the background while preserving aspect ratio: wide or tall
+  sources are cropped equally at opposite edges, with no added borders.
+  Large photos are reduced in stages to retain detail; transparency is
+  composited onto white. Native backgrounds use the same 160×105 pixel
+  dimensions as the sample images.
 * **AppVar** stores a named Python image AppVar that can be opened with
   ``ti_image.load_image(name)``. These uploads use compressed ``IM8C`` data,
   and the file browser labels recognized uploads as ``Python Image (8)``.
@@ -115,8 +123,9 @@ Native Image names must be fixed slots. Python image AppVar names must begin
 with a letter and contain one to eight uppercase letters, digits, or
 underscores. The dialog normalizes entered names to uppercase.
 
-Use **Transfer settings** to control dimension reduction, maximum width and
-height, and palette size. The plugin preserves the aspect ratio. These settings
+Use **Transfer settings** to control AppVar dimension reduction, maximum width
+and height, and palette size. AppVars preserve the entire image and its aspect
+ratio. Native backgrounds always use fixed dimensions and RGB565 color. These settings
 are stored in PyCharm's user configuration and apply to every project.
 
 .. figure:: _static/screenshots/transfer-settings.png
@@ -131,14 +140,15 @@ are stored in PyCharm's user configuration and apply to every project.
 Capture the screen
 ------------------
 
-Choose **Capture screen** to display the calculator framebuffer in the
-**Screen** tab. Save the original full-resolution capture as a PNG with either:
+Choose **Capture screen** to display the calculator :term:`framebuffer` in the
+**Screen** tab. Choose **Copy Image to Clipboard** to paste the original
+full-resolution capture into another app, or save it as a PNG with either:
 
 * **Save As…**, which opens a destination chooser and confirms replacement; or
 * **Save to Project Dir**, which creates a timestamped name and adds a numeric
   suffix rather than overwriting an existing file.
 
-The same actions are available from the screenshot's context menu.
+All three actions are also available from the screenshot's context menu.
 
 Next steps
 ----------

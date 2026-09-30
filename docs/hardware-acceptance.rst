@@ -1,15 +1,16 @@
 Hardware acceptance
 ===================
 
-Hardware acceptance is separate from the host-side test suite. It exercises a
+This physical :term:`acceptance test` is separate from the host-side test suite. It exercises a
 physical calculator with contained ``HA42`` fixtures, saves protocol traces,
 removes every fixture, and finally compares the calculator directory with its
-pre-run identity and RAM/Archive locations.
+pre-run identity and :term:`RAM`/:term:`Archive` locations.
 
 .. note::
 
    This page records the broad OS 7.0 write-operation matrix for release 0.4.2.
-   Release 0.5.0's narrower OS 7.1 SmartPad/HID and read-only CDC coexistence
+   Release 0.5.0's narrower OS 7.1 :term:`SmartPad`/:term:`HID` and read-only
+   :term:`CDC` coexistence
    evidence is recorded separately in :doc:`smartpad`.
 
 0.4.2 accepted configuration
@@ -35,7 +36,7 @@ sanitized configuration:
    * - Java
      - Oracle JDK ``25.0.4.1``
    * - USB transport
-     - TI VID ``0451``, PID ``E018``, Windows CDC serial
+     - TI :term:`VID` ``0451``, :term:`PID` ``E018``, Windows CDC serial
 
 The passing run took 195 seconds and covered:
 
@@ -47,7 +48,7 @@ The passing run took 195 seconds and covered:
 * create, edit, read back, move to Archive, and delete for a number, custom
   list, and matrix;
 * IM8C conversion, upload, readback, Archive placement, and deletion;
-* two full-resolution ``320 x 240`` RGB565 screen captures saved as PNG; and
+* two full-resolution ``320 x 240`` :term:`RGB565` screen captures saved as PNG; and
 * fixture cleanup followed by an exact match with all original variable
   identities and memory locations.
 
