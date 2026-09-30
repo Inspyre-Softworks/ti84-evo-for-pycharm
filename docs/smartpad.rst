@@ -20,15 +20,12 @@ Evidence labels
 ``Hardware``
 
    Observed on a physical TI-84 Evo running BSP ``7.1.0.4413`` and package
-
    ``7.1.0.4421``.
 
 ``Descriptor``
 
    Present in a descriptor returned by the physical device or in the Windows
-
    HID model. The source is identified because Windows reconstructs report
-
    descriptors from preparsed data.
 
 ``Packet capture``
@@ -47,91 +44,59 @@ Summary of findings
 -------------------
 
 * **Hardware + packet capture:** the calculator enumerated as
-
   ``0451:E018`` with configuration 1 and four interfaces while it was on the
-
   ordinary home screen. No SmartPad application was active on the visible
-
   screen.
 
 * **Hardware:** the interfaces were CDC control, CDC data, a vendor-specific
-
   bulk interface, and a standard boot-keyboard :term:`HID` interface. The HID
-
   interface therefore exists before SmartPad is launched.
 
 * **Descriptor + static package:** the exact 63-byte :term:`HID report descriptor` is
-
   a conventional Generic Desktop/Keyboard collection. It has an 8-byte
-
   boot-keyboard input report, one standard keyboard-LED output byte, no Report
-
   IDs, no Feature reports, and no vendor-defined usage pages.
 
 * **Static package:** OS 7.0 and 7.1 contain byte-identical USB device and
-
   configuration descriptors. The report descriptor differs only by widening
-
   the six-key array's logical/usage maximum from ``0x65`` to ``0xFF``. The
-
   composite HID interface is therefore not newly introduced in 7.1.
 
 * **Hardware + packet capture:** opening SmartPad did not change :term:`VID`/:term:`PID`,
-
   configuration number, device/configuration/string descriptors, interfaces,
-
   alternate settings, or endpoints. SmartPad activates the HID interface that
-
   was already enumerated on the home screen; it does not add an interface.
 
 * **Hardware + packet capture:** every physical key was swept. Reports are
-
   conventional 8-byte boot-keyboard reports. TI encodes most calculator keys
-
   as unique Left Control/Shift/Alt + F14--F20 chords; arrows, ``DEL``, ``ON``,
-
   ``ENTER``, and the arithmetic operators use ordinary keyboard/keypad :term:`usages <usage>`.
 
 * **Hardware + packet capture:** while endpoint ``84 IN`` was producing arrow
-
   reports, the unchanged CDC/Kermit implementation read ``sys/attributes``,
-
   ``dynamicinfo``, directory, and screen :term:`resources <resource>` over COM17. A later pull
-
   downloaded three complete Python variable bodies before encountering an
-
   unrelated existing decoder limitation on a TI library :term:`AppVar`.
 
 * **Hardware + packet capture:** held keys can yield identical unchanged
-
   reports, but the device supplies no device-side repeat presses. A second key
-
   held with the first does not occupy a second key slot. ``2nd`` and ``ALPHA``
-
   are normal independent SmartPad key reports; ``ON`` maps to HID Escape.
 
 * **Hardware + continuous packet capture:** launching SmartPad while USB remained
-
   connected did not cause a reset, disconnect/reconnect, re-enumeration,
-
   ``SET_CONFIGURATION``, or ``SET_INTERFACE`` transition. SmartPad reports began
-
   on the already-enumerated ``84 IN`` HID endpoint.
 
 * **Hardware UI observation:** SmartPad instructs ``TO STOP: UNPLUG USB CABLE``;
-
   the standard UI does not expose a SmartPad-to-home-screen transition while
-
   remaining USB-connected.
 
 * **Unknown:** whether the standard LED output bits affect the calculator, and
-
   whether SmartPad is byte-for-byte identical to the older Engineering-menu
-
   keyboard test at runtime.
 
 Consequently, OS 7.1's SmartPad is built on the standard boot-keyboard surface
-
 already present in the 7.0 firmware. The available evidence does not support
 claiming an additional SmartPad-specific HID or vendor protocol.
 
@@ -175,37 +140,21 @@ The exact 123-byte configuration descriptor was:
 .. code-block:: text
 
    09 02 7B 00 04 01 00 C0 01
-
    08 0B 00 02 02 02 01 00
-
    09 04 00 00 01 02 02 01 00
-
    05 24 00 10 01
-
    05 24 06 00 01
-
    05 24 01 03 01
-
    04 24 02 07
-
    07 05 83 03 10 00 10
-
    09 04 01 00 02 0A 00 00 00
-
    07 05 01 02 40 00 00
-
    07 05 82 02 40 00 00
-
    09 04 02 00 02 FF 00 00 00
-
    07 05 05 02 40 00 00
-
    07 05 86 02 40 00 00
-
    09 04 03 00 01 03 01 01 00
-
    09 21 11 01 00 01 22 3F 00
-
    07 05 84 03 40 00 10
 
 Configuration 1 reports four interfaces, one alternate setting per interface,
@@ -245,23 +194,14 @@ and 7.1:
 .. code-block:: text
 
    09 02 4E 00 01 02 00 C0 01
-
    09 04 00 00 02 FF 00 00 00
-
    07 05 01 02 40 00 00
-
    07 05 82 02 40 00 00
-
    09 04 00 01 02 FF 00 00 00
-
    07 05 01 02 40 00 00
-
    07 05 82 03 40 00 01
-
    09 04 00 02 02 FF 00 00 00
-
    07 05 01 02 40 00 00
-
    07 05 82 03 40 00 08
 
 It is configuration value 2 with one vendor-specific interface and three
@@ -277,10 +217,8 @@ Home-screen and active-SmartPad snapshots were first captured independently and
 compared field by field. The only JSON difference was capture provenance for
 the Windows-reconstructed report descriptor; the USB identity itself was
 identical. A later continuous USBPcap capture covered the transition from an
-
 already-enumerated calculator into active SmartPad. No USB reset,
 disconnect/reconnect, re-enumeration, ``SET_CONFIGURATION``, or
-
 ``SET_INTERFACE`` was observed during launch; endpoint ``84 IN`` simply
 began producing SmartPad keyboard reports on the existing HID interface.
 The SmartPad screen itself instructs ``TO STOP: UNPLUG USB CABLE``.
@@ -334,11 +272,8 @@ matching that advertised length:
 .. code-block:: text
 
    05 01 09 06 A1 01 05 07 19 E0 29 E7 15 00 25 01
-
    75 01 95 08 81 02 95 01 75 08 81 01 95 05 75 01
-
    05 08 19 01 29 05 91 02 95 01 75 03 91 01 95 06
-
    75 08 15 00 25 FF 05 07 19 00 29 FF 81 00 C0
 
 Windows/hidapi independently reconstructed a semantically equivalent 65-byte
@@ -351,49 +286,27 @@ Human-readable reconstruction:
 .. code-block:: text
 
    Usage Page (Generic Desktop)
-
    Usage (Keyboard)
-
    Collection (Application)
-
      Usage Page (Keyboard/Keypad)
-
      Usage Minimum (Keyboard LeftControl, E0)
-
      Usage Maximum (Keyboard Right GUI, E7)
-
      Logical Minimum 0; Logical Maximum 1
-
      Report Size 1; Report Count 8
-
      Input (Data, Variable, Absolute)
-
      Report Count 1; Report Size 8
-
      Input (Constant, Array, Absolute)
-
      Usage Page (LEDs)
-
      Usage Minimum (Num Lock); Usage Maximum (Kana)
-
      Report Count 5; Report Size 1
-
      Output (Data, Variable, Absolute)
-
      Report Count 1; Report Size 3
-
      Output (Constant, Array, Absolute)
-
      Report Count 6; Report Size 8
-
      Logical Minimum 0; Logical Maximum 255
-
      Usage Page (Keyboard/Keypad)
-
      Usage Minimum 00; Usage Maximum FF
-
      Input (Data, Array, Absolute)
-
    End Collection
 
 Report layouts
@@ -430,7 +343,6 @@ The one-byte output layout is:
 No Feature fields, vendor-defined usage pages, extra Report IDs, or additional
 HID endpoints appear in either the exact descriptor or Windows model. The read-only ``probe`` command
 does not issue speculative ``GET_REPORT`` requests. ``led-output`` is the only
-
 write command and requires both an explicit value in ``0..31`` and
 ``--confirm``; it has not been run on the test calculator.
 
@@ -571,7 +483,6 @@ the named usage occupies byte 2 and bytes 3--7 are zero.
      - ``00 00 28 00 00 00 00 00``
 
 The tested Evo has a fraction-template key rather than an ``APPS``-labelled
-
 key; therefore no separate ``APPS`` mapping exists in this physical map.
 
 Each ordinary press is followed by ``00 00 00 00 00 00 00 00`` on release.
@@ -588,25 +499,18 @@ Representative raw log lines are:
 .. code-block:: text
 
    18:35:51.103 IF03 IN EP84 id=0 00 00 6F 00 00 00 00 00  Y=/F20 DOWN
-
    18:35:52.815 IF03 IN EP84 id=0 00 00 00 00 00 00 00 00  Y=/F20 UP
-
    18:37:28.285 IF03 IN EP84 id=0 00 00 50 00 00 00 00 00  LEFT DOWN
-
    18:37:30.141 IF03 IN EP84 id=0 00 00 50 00 00 00 00 00  HELD/UNCHANGED
-
    18:28:06.198 IF03 IN EP84 id=0 03 00 69 00 00 00 00 00  9 DOWN
-
    18:28:06.294 IF03 IN EP84 id=0 02 00 69 00 00 00 00 00  9 UP, LOG DOWN
 
 Tapping ``2nd`` and then ``ALPHA`` (the calculator's Alpha Lock sequence)
 produces the ordinary ``2nd`` press/release followed by the ordinary
-
 ``ALPHA`` press/release. There is no separate Alpha Lock usage or state report.
 The decoder handles press, release, held/unchanged state, all eight modifier
 bits, six input slots, rollover/error usages, unknown usages, malformed
 lengths, and optional Report IDs for future descriptors. It keeps the raw
-
 report, reserved byte, and slot order. Calculator mapping is keyed by the full
 modifier-byte + usage chord, because usage alone is not unique.
 CDC and HID coexistence
@@ -627,10 +531,8 @@ all four read-only requests below:
 
 A subsequent project pull received complete bodies for ``GRAPH`` (976 bytes),
 ``HELLO`` (258 bytes), and ``LINREGR`` (641 bytes) while SmartPad remained in
-
 scope. It then stopped at ``TI_DRAW`` because the existing Python decoder does
 not recognize that TI library AppVar header. This is a decoding limitation
-
 after transfer, not evidence of CDC or SmartPad interference; no calculator
 writes were attempted. The pull's transactional design did not materialize
 the three partial results as project files after the later decode failure.
@@ -644,23 +546,19 @@ Bidirectional behavior
 At the HID layer, endpoint ``84`` is input-only. The descriptor's only
 host-to-device field is the standard one-byte keyboard LED output report,
 delivered over endpoint zero because there is no HID OUT endpoint. No Feature
-
 report, vendor usage, acknowledgement, status input, or SmartPad command
 channel is descriptor-defined. The LED output has not been sent, so whether
 the calculator consumes it or simply accepts/ignores it is **unknown**.
 The pre-existing composite interfaces remain bidirectional: CDC has
 ``01 OUT``/``82 IN``, and the separate vendor interface has
-
 ``05 OUT``/``86 IN``. Nothing in the descriptor associates either with
 SmartPad. Static OS 7.1 strings add the candidate token
-
 ``exitsmartpadapp``, but calling semantics and direction are unknown.
 The existing :term:`hh01` path, ``hh01/sys/scancode``, supplies the opposite direction,
 host-to-calculator key injection. It was not changed or bridged automatically.
 
 A future opt-in experiment can pair captured HID events with that existing
 resource now that active CDC/HID coexistence is confirmed. It must tag origins,
-
 suppress echoes, and never forward injected events back into the calculator.
 OS 7.0 versus 7.1 resource data
 -------------------------------
@@ -705,17 +603,11 @@ The OS 7.1 ``dynamicinfo`` response decoded as:
 .. code-block:: text
 
    {
-
      "metaData": {"type": 58, "version": 1},
-
      "ram": 498708,
-
      "archive": 2886672,
-
      "language": 1,
-
      "ptt": false
-
    }
 
 Its complete 66-byte CBOR response was:
@@ -723,11 +615,8 @@ Its complete 66-byte CBOR response was:
 .. code-block:: text
 
    BF 68 6D 65 74 61 44 61 74 61 BF 64 74 79 70 65 18 3A
-
    67 76 65 72 73 69 6F 6E 01 FF 63 72 61 6D 1A 00 07 9C
-
    14 67 61 72 63 68 69 76 65 1A 00 2C 0C 10 68 6C 61 6E
-
    67 75 61 67 65 01 63 70 74 74 F4 FF
 
 The ``sys/attributes`` response was 197 bytes. Its complete field topology and
@@ -736,16 +625,12 @@ redacted from the repository documentation rather than publishing a hardware
 identifier. The new diagnostic command stores the untouched response locally
 so future unknown fields and exact encodings remain available for comparison.
 No new field was found in the 7.1 ``sys/attributes`` response. A raw OS 7.0
-
 ``dynamicinfo`` response and an OS 7.0 USB descriptor capture were not
 available. However, the 7.0 and 7.1 firmware packages contain identical
-
 device, configuration 1, and hidden configuration 2 descriptor templates.
 Only two report-descriptor bytes changed: OS 7.0 limited the six-key input
-
 array to logical/usage maximum ``0x65``; OS 7.1 uses ``0xFF``. No new
 interface, endpoint, configuration, Report ID, output report, or Feature report
-
 was introduced in the package descriptors. No new callable ``hh01`` resource
 was confirmed on hardware.
 Application and Engineering-menu investigation
@@ -776,26 +661,19 @@ strings, localized launch/stop text, ``usbHidStates``, and
 not yet be described as a callable ``hh01`` :term:`endpoint`.
 TI-Planet independently reports that OS 7.1's Engineering menu has
 ``Utilities -> SmartPad`` as well as the older
-
 ``Tests -> Link -> HID Device Test -> Keyboard``. Together, the static
 descriptor/string evidence and continuous launch capture make it a
 **strong inference** that the public SmartPad app is a user-facing wrapper
 over the pre-existing firmware keyboard facility. Entering SmartPad activates
 the HID interface already present in the normal composite configuration rather
-
 than switching USB identities or configurations. A simultaneous packet capture
 of both menu paths is still required before calling their report streams
-
 byte-identical.
 
 A string search of the public TI Connect Evo web application did not find
-
 SmartPad-specific resource names, ``dynamicinfo``, or ``sys/scancode``; that
-
 web application is not the calculator OS bundle, so this is weak negative
-
 evidence only. No separately downloadable SmartPad application appeared in
-
 the calculator variable directory.
 
 Diagnostic tools
@@ -819,15 +697,12 @@ system keyboard events:
 .. code-block:: powershell
 
    py scripts/utils/smartpad_usb.py usbpcap-monitor --seconds 120 `
-
      --pcap captures/smartpad-os-7.1/active/calculator-only.pcapng `
-
      --log captures/smartpad-os-7.1/active/reports.log
 
 The command locates the correct USBPcap root, discovers the calculator's
 current USB address, captures to a temporary root trace, writes only frames for
 that device to the requested pcap, and decodes endpoint ``84``. The temporary
-
 root trace is discarded so unrelated USB traffic is not retained.
 
 Useful Wireshark display filters are:
@@ -835,13 +710,9 @@ Useful Wireshark display filters are:
 .. code-block:: text
 
    usb.idVendor == 0x0451 && usb.idProduct == 0xe018
-
    usb.device_address == <captured-address> && usb.endpoint_address == 0x84
-
    usb.device_address == <captured-address> &&
-
      (usb.endpoint_address == 0x01 || usb.endpoint_address == 0x82 ||
-
       usb.endpoint_address == 0x84)
 
 Save raw resources without discarding unknown CBOR keys or byte strings:
@@ -849,11 +720,8 @@ Save raw resources without discarding unknown CBOR keys or byte strings:
 .. code-block:: powershell
 
    .\gradlew cliJar
-
    java -jar build/libs/ti84-evo-cli.jar diagnose-resources `
-
      --output captures/smartpad-os-7.1/resources `
-
      --include-directory --include-screen
 
 Each resource is saved as untouched ``.cbor``, a lossless diagnostic text
@@ -863,17 +731,14 @@ Implementation boundary and recommendations
 -------------------------------------------
 
 The production Kermit code was not changed. New parsing and monitoring logic
-
 is independent of PyCharm UI classes:
 
 * ``SmartPadHidDescriptor`` losslessly parses HID items and report fields.
 
 * ``SmartPadReportDecoder`` creates state and transition events while retaining
-
   unknown bytes/usages.
 
 * ``SmartPadDeviceDetector`` keeps HID presence separate from observed
-
   SmartPad activity.
 
 * ``SmartPadMonitor`` formats UI-independent diagnostic frames.
@@ -881,25 +746,19 @@ is independent of PyCharm UI classes:
 Based only on confirmed behavior, the safe plugin candidates are:
 
 * an opt-in SmartPad monitor showing calculator key, full HID chord, raw report,
-
   and press/release/unchanged state;
 
 * a mapping inspector initialized from the captured 50-key table and able to
-
   retain/display unknown future chords;
 
 * opt-in calculator-key-to-IDE-action bindings, registered only while the
-
   monitor owns the selected TI HID device and never as global keyboard hooks;
 
 * device status that distinguishes ``HID interface present`` from
-
   ``SmartPad input observed`` and can show confirmed ``CDC + SmartPad HID``;
 
 * an experimental bidirectional bridge using the existing
-
   ``hh01/sys/scancode`` path, guarded by origin tags, deduplication, and an
-
   explicit loop-prevention switch.
 
 The captured single-key behavior means action binding should match the entire
