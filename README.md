@@ -168,12 +168,14 @@ The USB and transfer layers are implemented natively in Kotlin. Protocol behavio
 
 ## Project status
 
-Release 0.5.0 establishes the OS 7.1 SmartPad protocol and complete physical
-key map without enabling global key interception in the production plugin.
-The next SmartPad work is an explicitly opt-in monitor and IDE-action binding
-surface built on the new UI-independent decoder. Other planned work includes
-variable renaming, editable TI-BASIC programs, and a PyCharm run configuration
-that can push and launch a selected project.
+Current version 0.6.0 adds a first-open **What's New** dialog, screenshot
+clipboard copying, improved native background conversion, and bundled
+developer utilities. Its optional [Windows SmartPad macro pad](docs/smartpad.rst)
+maps calculator keys to shortcuts without changing the production plugin. The
+underlying OS 7.1 SmartPad protocol and physical key map were established in
+release 0.5.0. Planned work includes variable renaming, editable TI-BASIC
+programs, and a PyCharm run configuration that can push and launch a selected
+project.
 
 Automated tests and plugin packaging run in GitHub Actions, but successful CI cannot verify calculator firmware behavior, USB hardware, or every host configuration.
 

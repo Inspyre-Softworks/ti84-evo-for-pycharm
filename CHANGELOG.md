@@ -1,8 +1,19 @@
 # Changelog
 
-## 0.5.1
+## 0.6.0
 
-- Correct native background image orientation and the Evo format marker, fill the sample-sized canvas with a centered crop, and improve photo downsampling quality.
+- [Feature - Production] Show formatted release notes once when the TI-84 Evo tool window first opens after installing a new plugin version.
+- [Feature - Production] Copy full-resolution screen captures as images to the clipboard from the Screen tab or its context menu.
+- [Bugfix] Improve native background image conversion with correct orientation and format markers, centered cropping, and higher-quality downsampling.
+- [Bugfix] Keep the calculator on its current screen during file browsing by avoiding navigation-triggering directory reads and inspecting Python image AppVars only when opened.
+- [Enhance] Speed up screen capture and other large reads by setting the serial timeout once per connection.
+- [Feature - Production] Add an opt-in Windows SmartPad macro pad with configurable global key bindings, target windows, and PyCharm Run/Debug examples.
+- [Feature - Dev] Add Marauders Lock Developer Utilities for SmartPad diagnostics, screen benchmarking, continuous preview, and MP4 recording, with visible output, streamed PNG/timing backups, and graceful Stop controls.
+- [Feature - Dev] Add an Always Show Changelog option and a Marauders Lock re-check in About for activating developer controls without restarting PyCharm.
+- [Enhance] Give Developer Utilities a distinct wand icon in the tool window toolbar.
+- [Code Clean] Group standalone utilities under `scripts/utils`.
+- [Bugfix] Fix the Windows screen benchmark launcher classpath and native-access warning.
+- [Bugfix] Prevent the What's New window from reopening during the same IDE session, including when Always Show Changelog is enabled.
 
 ## 0.5.0
 

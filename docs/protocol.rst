@@ -1,7 +1,8 @@
 Protocol overview
 =================
 
-The OS 7.1 SmartPad HID work is kept separate from this CDC/Kermit stack. See
+The OS 7.1 :term:`SmartPad` :term:`HID` work is kept separate from this
+:term:`CDC`/:term:`Kermit` stack. See
 :doc:`smartpad` for the captured composite USB descriptors, HID report model,
 raw-capture tooling, and current unknowns.
 
@@ -208,24 +209,26 @@ Read path
 
 The :term:`resource` path uses the observed
 :term:`transaction ladder`. It supports resource requests such as
-``hh01/get/hh01/sys/attributes`` and ``hh01/get/hh01/sys/screen``. Screen data is
+``hh01/get/hh01/sys/attributes`` and ``hh01/get/hh01/sys/screen`` in the
+:term:`hh01` namespace. Screen data is
 decoded from the Evo run encoding and converted from little-endian
 :term:`RGB565` to a Java image. The file browser reads
-``hh01/get/hh01/inf/res?name=directory&gotohome=1`` and decodes the returned
+``hh01/get/hh01/inf/res?name=directory`` and decodes the returned
 :term:`CBOR` entries, including Evo :term:`tokenized name` values and memory
-locations. Directory transfers use a zero length as an unknown-size sentinel
+locations. The directory is a :term:`dynamic resource`: its transfers use a zero
+length as an unknown-size sentinel
 and apply Kermit :term:`control quoting` and :term:`repeat encoding` across
 their :term:`D frame` payloads; the reader decodes the complete wire stream
 before parsing CBOR.
 
 Individual variables are downloaded through
 ``hh01/get/hh01/xfr/var?name=...&type=...``. The complete CBOR envelope can be
-inspected and exported with the Evo checksum restored. Native number, list, and
+inspected and exported with the Evo :term:`checksum` restored. Native number, list, and
 matrix payloads are decoded into editable real, fraction, complex, and tabular
 text. Creation/replacement uses the firmware's type-60 ASCII import envelope, so
 the calculator remains responsible for encoding edited values back to native form.
 
-Saving an existing RAM variable to Archive downloads that envelope, restores
+Saving an existing :term:`RAM` variable to :term:`Archive` downloads that envelope, restores
 the two-byte Evo file checksum, and uploads it through
 ``hh01/xfr/var?memtarget=1&policy=1``. The client then reads the directory again
 and requires the same tokenized name and type to appear in Archive.
@@ -261,7 +264,7 @@ delete path shares the proven upload encoder used by normal variable transfers.
 
 An acknowledged transaction is not sufficient evidence of deletion. After
 every attempt, the client closes and reopens the serial session, reads
-``hh01/get/hh01/inf/res?name=directory&gotohome=1``, and searches for the same
+``hh01/get/hh01/inf/res?name=directory``, and searches for the same
 tokenized name and type ID. The operation reports progress—and the plugin
 removes its table row—only when that entry is absent. This check also handles a
 timeout after the calculator applied the request but before it returned the

@@ -15,9 +15,12 @@ class EvoApplicationSettings : PersistentStateComponent<EvoApplicationSettings.S
         var imageMaxHeight: Int = 210,
         var imageColors: Int = 64,
         var marketplaceCheckIntervalSeconds: Int = DEFAULT_MARKETPLACE_CHECK_INTERVAL_SECONDS,
+        var lastShownChangelogVersion: String = "",
+        var alwaysShowChangelog: Boolean = false,
     )
 
     private var state = State()
+    private val shownChangelogVersionsThisSession = mutableSetOf<String>()
 
     override fun getState(): State = state
 
@@ -29,6 +32,20 @@ class EvoApplicationSettings : PersistentStateComponent<EvoApplicationSettings.S
 
     fun snapshot(mischiefMode: Boolean = false): State = state.copy().sanitized(mischiefMode)
 
+    @Synchronized
+    fun claimChangelog(version: String, mischiefMode: Boolean = false): Boolean {
+        if (version.isBlank() || version == "unknown") return false
+        if (state.lastShownChangelogVersion == version && !(mischiefMode && state.alwaysShowChangelog)) return false
+        if (!shownChangelogVersionsThisSession.add(version)) return false
+        state = state.copy(lastShownChangelogVersion = version)
+        return true
+    }
+
+    @Synchronized
+    fun setAlwaysShowChangelog(enabled: Boolean) {
+        state = state.copy(alwaysShowChangelog = enabled)
+    }
+
     fun update(value: State, mischiefMode: Boolean = false) {
         require(
             value.marketplaceCheckIntervalSeconds >= minimumMarketplaceCheckIntervalSeconds(mischiefMode),
@@ -36,7 +53,10 @@ class EvoApplicationSettings : PersistentStateComponent<EvoApplicationSettings.S
             "Marketplace check interval must be at least " +
                 "${minimumMarketplaceCheckIntervalSeconds(mischiefMode)} seconds."
         }
-        state = value.sanitized(mischiefMode)
+        state = value.copy(
+            lastShownChangelogVersion = state.lastShownChangelogVersion,
+            alwaysShowChangelog = state.alwaysShowChangelog,
+        ).sanitized(mischiefMode)
     }
 
     private fun State.sanitized(mischiefMode: Boolean): State = copy(

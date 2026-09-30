@@ -2,6 +2,7 @@
 .gradle/
 .kotlin/
 build/
+build-changelog-check/
 out/
 __pycache__/
 *.pyc

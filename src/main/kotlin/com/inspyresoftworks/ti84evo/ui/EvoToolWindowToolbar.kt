@@ -6,6 +6,8 @@ import com.intellij.openapi.actionSystem.ActionToolbar
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.util.IconLoader
+import com.inspyresoftworks.ti84evo.service.EvoMischiefMode
 import javax.swing.Icon
 import javax.swing.JComponent
 
@@ -20,12 +22,14 @@ internal data class EvoToolWindowActions(
     val configureTransfers: () -> Unit,
     val pushProject: () -> Unit,
     val pullProject: () -> Unit,
+    val showDeveloperTools: () -> Unit,
     val showAbout: () -> Unit,
 )
 
 /** Builds a native IDE toolbar with a visible overflow affordance. */
 internal object EvoToolWindowToolbar {
     const val PLACE = "TI84Evo.ToolWindow"
+    private val developerUtilitiesIcon = IconLoader.getIcon("/icons/developerTools.svg", EvoToolWindowToolbar::class.java)
 
     fun create(target: JComponent, callbacks: EvoToolWindowActions): ActionToolbar {
         val group = DefaultActionGroup().apply {
@@ -91,6 +95,17 @@ internal object EvoToolWindowToolbar {
                 AllIcons.General.Settings,
                 callbacks.configureTransfers,
             ))
+            add(object : AnAction(
+                "Developer utilities",
+                "Open screen capture and SmartPad diagnostic utilities",
+                developerUtilitiesIcon,
+            ) {
+                override fun update(event: AnActionEvent) {
+                    event.presentation.isVisible = EvoMischiefMode.isActive()
+                }
+
+                override fun actionPerformed(event: AnActionEvent) = callbacks.showDeveloperTools()
+            })
             add(toolbarAction(
                 "About TI-84 Evo",
                 "Show the installed plugin version and build information",

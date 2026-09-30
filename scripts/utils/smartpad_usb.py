@@ -31,6 +31,7 @@ EVO_PRODUCT_ID = 0xE018
 HID_INTERFACE = 3
 HID_ENDPOINT = 0x84
 BOOT_REPORT_BYTES = 8
+SMARTPAD_REQUIREMENTS = Path(__file__).with_name('requirements-smartpad.txt')
 
 ITEM_TYPE_NAMES = {0: 'main', 1: 'global', 2: 'local', 3: 'reserved'}
 MAIN_TAGS = {8: 'Input', 9: 'Output', 10: 'Collection', 11: 'Feature', 12: 'End Collection'}
@@ -265,7 +266,7 @@ def usb_modules() -> tuple[Any, Any, Any]:
     except ImportError as error:
         raise SystemExit(
             'USB enumeration requires pyusb and libusb-package. '
-            'Install scripts/requirements-smartpad.txt.'
+            f'Install with: py -m pip install -r "{SMARTPAD_REQUIREMENTS}".'
         ) from error
     return usb.core, usb.util, get_libusb1_backend
 
@@ -275,7 +276,8 @@ def hid_module() -> Any:
         import hid
     except ImportError as error:
         raise SystemExit(
-            'HID access requires hidapi. Install scripts/requirements-smartpad.txt.'
+            f'HID access requires hidapi. Install with: py -m pip install -r '
+            f'"{SMARTPAD_REQUIREMENTS}".'
         ) from error
     return hid
 

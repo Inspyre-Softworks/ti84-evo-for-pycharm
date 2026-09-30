@@ -29,7 +29,7 @@ class EvoLink(private val transport: EvoTransport) {
     fun getAttributes(): Map<String, Any?> = decodeStringMap(getResource("sys/attributes"))
 
     fun getDirectory(): List<EvoDirectoryEntry> = EvoDirectoryCodec.decode(
-        getResource("hh01/inf/res?name=directory&gotohome=1"),
+        getResource("hh01/inf/res?name=directory"),
     )
 
     fun getVariable(entry: EvoDirectoryEntry): ByteArray {

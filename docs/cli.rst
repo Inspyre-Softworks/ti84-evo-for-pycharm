@@ -71,16 +71,16 @@ Common commands
    .\ti84-evo.ps1 backup .\captures\backup
 
 ``list-files`` is read-only and shows each variable's name, numeric type, size,
-and RAM/Archive location.
+and :term:`RAM`/:term:`Archive` location.
 
 Read-only resource diagnostics
 ------------------------------
 
 ``diagnose-resources`` preserves calculator responses for firmware comparison
-without converting away unknown CBOR keys or byte strings. It always reads
+without converting away unknown :term:`CBOR` keys or byte strings. It always reads
 ``sys/attributes`` and ``dynamicinfo``. Use ``--include-directory`` and
 ``--include-screen`` for the larger standard resources, or repeat
-``--resource URI`` for another explicitly known read-only resource:
+``--resource URI`` for another explicitly known read-only :term:`resource`:
 
 .. code-block:: powershell
 
@@ -97,7 +97,7 @@ The output directory contains, for each response:
 * a UTC capture timestamp.
 
 This command performs reads only. It does not probe guessed resource names,
-send scancodes, write variables, or issue SmartPad HID output reports. Device
+send scancodes, write variables, or issue :term:`SmartPad` :term:`HID` output reports. Device
 identifiers remain present in the local raw response; review or redact them
 before publishing diagnostic files. See :doc:`smartpad` for the OS 7.1 results
 and the separate raw USB/HID capture utility.

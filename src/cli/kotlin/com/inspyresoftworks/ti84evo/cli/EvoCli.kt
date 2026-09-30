@@ -336,7 +336,7 @@ object EvoCli {
         )
 
         val resources = linkedSetOf("sys/attributes", "hh01/inf/res?name=dynamicinfo")
-        if (includeDirectory) resources += "hh01/inf/res?name=directory&gotohome=1"
+        if (includeDirectory) resources += "hh01/inf/res?name=directory"
         if (includeScreen) resources += "sys/screen"
         explicitResources.forEach { resources += it }
 
