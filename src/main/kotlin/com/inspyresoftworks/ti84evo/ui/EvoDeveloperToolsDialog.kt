@@ -251,6 +251,12 @@ internal class EvoDeveloperToolsDialog(private val project: Project) : DialogWra
     private fun closeTools() {
         closed = true
         stopProcess()
+        process?.let { current ->
+            if (current.isAlive && !current.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                current.destroyForcibly()
+                current.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
+            }
+        }
         toolDirectory?.let { directory ->
             for (name in TOOL_FILES) {
                 runCatching { Files.deleteIfExists(directory.resolve(name)) }
