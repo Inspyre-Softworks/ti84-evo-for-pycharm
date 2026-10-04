@@ -56,6 +56,8 @@ class EvoProjectRunner(private val transport: EvoTransport) {
 
         checkCancelled(isCancelled)
         if (pending.isNotEmpty()) {
+            transport.close()
+            transport.open()
             onProgress("Uploading ${pending.size} changed Python program(s)…")
             EvoPythonTransfer(transport).uploadProject(
                 pending.map { EvoPythonTransfer.Program(it.entry.programName, it.source, it.entry.archived) },
@@ -70,6 +72,8 @@ class EvoProjectRunner(private val transport: EvoTransport) {
         }
 
         checkCancelled(isCancelled)
+        transport.close()
+        transport.open()
         onProgress("Launching $targetName…")
         val launch = EvoPythonLauncher(transport).launch(targetName)
         return Result(

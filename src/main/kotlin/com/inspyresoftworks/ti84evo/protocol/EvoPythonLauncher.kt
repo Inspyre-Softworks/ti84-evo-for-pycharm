@@ -21,6 +21,9 @@ class EvoPythonLauncher(
         require(EvoPythonPayload.isValidProgramName(requested)) {
             "calculator program name must contain 1–8 letters or digits"
         }
+        if (requested.first() !in 'A'..'Z') {
+            throw EvoProtocolException("Python launch targets must start with a letter: $requested")
+        }
 
         // gotohome=1 is intentional here: unlike passive browsing, launching
         // needs a deterministic Calculator-app starting point.
@@ -37,6 +40,8 @@ class EvoPythonLauncher(
             )
         }
 
+        transport.close()
+        transport.open()
         val keys = EvoListEditor(transport)
         var packets = keys.sendScancodes(OPEN_PYTHON_FILE_MANAGER)
         sleep(waitForPythonMillis)

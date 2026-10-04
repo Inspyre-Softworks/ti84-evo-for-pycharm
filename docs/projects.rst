@@ -132,7 +132,7 @@ contents are used, so saving files first is not required. It then:
    ``@always-push-all=true`` requests a complete push;
 4. returns the calculator to its Home screen;
 5. opens the Python File Manager, selects the configured RAM program, and sends
-   its **Run** action; and
+   its **Run** action;
 6. opens the live screen viewer when that option is enabled; and
 7. ends the PyCharm run after the launch command has been dispatched.
 

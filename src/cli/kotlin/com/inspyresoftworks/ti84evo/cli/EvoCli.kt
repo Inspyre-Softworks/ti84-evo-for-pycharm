@@ -121,8 +121,11 @@ object EvoCli {
 
         val project = EvoProjectResolver.resolve(projectRoot.resolve(EvoProjectManifest.FILE_NAME))
         val ramPrograms = project.programs.filterNot { it.entry.archived }
-        val launchProgram = requestedProgram ?: ramPrograms.singleOrNull()?.entry?.programName
-            ?: error("run requires --program NAME when the project has more than one RAM program")
+        val launchProgram = requestedProgram ?: when (ramPrograms.size) {
+            0 -> error("run requires --program NAME when the project has no RAM programs")
+            1 -> ramPrograms.single().entry.programName
+            else -> error("run requires --program NAME when the project has more than one RAM program")
+        }
         Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
         val result = CliTransport.auto().use { transport ->
             transport.open()
