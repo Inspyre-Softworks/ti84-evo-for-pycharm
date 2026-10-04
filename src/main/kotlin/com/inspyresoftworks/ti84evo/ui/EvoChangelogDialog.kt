@@ -2,6 +2,7 @@ package com.inspyresoftworks.ti84evo.ui
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.ide.BrowserUtil
 import com.intellij.ui.components.JBScrollPane
 import com.inspyresoftworks.ti84evo.settings.EvoApplicationSettings
 import java.awt.BorderLayout
@@ -12,6 +13,7 @@ import javax.swing.JComponent
 import javax.swing.JEditorPane
 import javax.swing.JCheckBox
 import javax.swing.JPanel
+import javax.swing.event.HyperlinkEvent
 
 internal class EvoChangelogDialog(
     project: Project,
@@ -32,6 +34,11 @@ internal class EvoChangelogDialog(
             isEditable = false
             isOpaque = false
             caretPosition = 0
+            addHyperlinkListener { event ->
+                if (event.eventType == HyperlinkEvent.EventType.ACTIVATED && event.url != null) {
+                    BrowserUtil.browse(event.url)
+                }
+            }
         }).apply {
             preferredSize = Dimension(640, 340)
         }, BorderLayout.CENTER)
@@ -86,6 +93,7 @@ internal object EvoChangelog {
     private fun format(text: String): String = escape(text)
         .replace(Regex("`([^`]+)`"), "<code>$1</code>")
         .replace(Regex("\\*\\*([^*]+)\\*\\*"), "<b>$1</b>")
+        .replace(Regex("\\[([^]]+)]\\((https://[^ )]+)\\)"), "<a href=\"$2\">$1</a>")
 
     private fun escape(text: String): String = text
         .replace("&", "&amp;")

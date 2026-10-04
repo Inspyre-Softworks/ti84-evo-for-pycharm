@@ -15,7 +15,7 @@ TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, m
 ## Highlights
 
 - Upload the current Python file to RAM or Archive.
-- Configure, push, and pull multi-file Python projects.
+- Configure, push, run, and pull multi-file Python projects.
 - Skip unchanged files during project pushes.
 - Browse calculator variables with their type, size, and storage location.
 - View and export variables in their native Evo format.
@@ -34,7 +34,7 @@ TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, m
 | --- | --- |
 | Install, connect, and upload a first program | [Getting started](docs/guide.rst) |
 | Browse, edit, archive, or delete calculator variables | [Calculator files and images](docs/calculator-files.rst) |
-| Configure, push, or pull a multi-file project | [Multi-file projects](docs/projects.rst) |
+| Configure, push, run, or pull a multi-file project | [Multi-file projects](docs/projects.rst) |
 | Use PowerShell or Windows Explorer | [Companion CLI](docs/cli.rst) |
 | Fix detection, timeout, conflict, or conversion problems | [Troubleshooting](docs/troubleshooting.rst) |
 | Investigate OS 7.1 SmartPad/HID | [SmartPad protocol and diagnostics](docs/smartpad.rst) |
@@ -95,6 +95,8 @@ main.py=MAIN|RAM
 
 Use **Push project** to send changed files in manifest order. The plugin checks both its local synchronization state and the live calculator directory, so a program that was deleted or moved on the calculator is restored on the next push.
 
+To push and start a program in one action, add a **TI-84 Evo Python Project** configuration under **Run | Edit Configurations**. Select the project manifest and a RAM launch target such as `MAIN`; an optional checkbox opens a live calculator screen after launch. The [multi-file project guide](docs/projects.rst#run-a-project) explains validation, incremental uploads, launch behavior, console output, and stopping a run.
+
 Use **Pull project** to download every Python program from the calculator and rebuild the local files and manifest. Existing local changes are shown before anything is overwritten.
 
 Calculator names must be unique and contain 1–8 letters or digits. Manifest paths are relative to the project directory.
@@ -125,6 +127,8 @@ Each GitHub release includes a separate `ti84-evo-cli-<version>.zip` for Windows
 .\ti84-evo.ps1 send .\main.py
 .\ti84-evo.ps1 send --archive .\scripts
 .\ti84-evo.ps1 send
+.\ti84-evo.ps1 run --project . --program MAIN
+.\ti84-evo.ps1 launch MAIN
 .\ti84-evo.ps1 pull --project .
 .\ti84-evo.ps1 archive MAIN:15
 .\ti84-evo.ps1 delete MAIN:15
@@ -168,14 +172,12 @@ The USB and transfer layers are implemented natively in Kotlin. Protocol behavio
 
 ## Project status
 
-Current version 0.6.0 adds a first-open **What's New** dialog, screenshot
-clipboard copying, improved native background conversion, and bundled
-developer utilities. Its optional [Windows SmartPad macro pad](docs/smartpad.rst)
-maps calculator keys to shortcuts without changing the production plugin. The
-underlying OS 7.1 SmartPad protocol and physical key map were established in
-release 0.5.0. Planned work includes variable renaming, editable TI-BASIC
-programs, and a PyCharm run configuration that can push and launch a selected
-project.
+Current version 0.7.0 adds a PyCharm run configuration and CLI commands that
+incrementally push and launch a selected RAM Python program, plus a live screen
+viewer that can open after IDE launches. The separate optional [Windows
+SmartPad macro pad](docs/smartpad.rst) maps calculator keys to
+shortcuts without changing the production plugin. Planned work includes
+variable renaming and editable TI-BASIC programs.
 
 Automated tests and plugin packaging run in GitHub Actions, but successful CI cannot verify calculator firmware behavior, USB hardware, or every host configuration.
 

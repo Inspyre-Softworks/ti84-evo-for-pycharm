@@ -2,11 +2,14 @@ package com.inspyresoftworks.ti84evo.cli
 
 import com.inspyresoftworks.ti84evo.model.EvoDirectoryEntry
 import com.inspyresoftworks.ti84evo.project.EvoProjectManifest
+import com.inspyresoftworks.ti84evo.project.EvoProjectResolver
+import com.inspyresoftworks.ti84evo.project.EvoProjectRunner
 import com.inspyresoftworks.ti84evo.project.EvoProjectPull
 import com.inspyresoftworks.ti84evo.project.EvoProjectUploadState
 import com.inspyresoftworks.ti84evo.protocol.EvoCborDiagnostic
 import com.inspyresoftworks.ti84evo.protocol.EvoLink
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonProjectPuller
+import com.inspyresoftworks.ti84evo.protocol.EvoPythonLauncher
 import com.inspyresoftworks.ti84evo.protocol.EvoPythonTransfer
 import com.inspyresoftworks.ti84evo.protocol.EvoVariableDeleteException
 import com.inspyresoftworks.ti84evo.protocol.EvoVariableTransfer
@@ -41,6 +44,8 @@ object EvoCli {
                 "archive" -> archiveFiles(args.drop(1))
                 "delete", "rm" -> deleteFiles(args.drop(1))
                 "list-files", "list" -> listFiles()
+                "launch" -> launch(args.drop(1))
+                "run" -> runProject(args.drop(1))
                 "diagnose-resources" -> diagnoseResources(args.drop(1))
                 "backup" -> backup(args.drop(1))
                 "hardware-acceptance" -> hardwareAcceptance(args.drop(1))
@@ -76,6 +81,62 @@ object EvoCli {
                 "  ${entry.name.padEnd(12)} ${type.padEnd(22)} ${formatBytes(entry.size).padStart(10)}  ${entry.location}",
             )
         }
+    }
+
+    private fun launch(arguments: List<String>) {
+        require(arguments.size == 1) { "launch requires a calculator Python program name" }
+        val requested = arguments.single().uppercase()
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        val result = CliTransport.auto().use { transport ->
+            transport.open()
+            Terminal.success("Connected to ${transport.description}")
+            EvoPythonLauncher(transport).launch(requested)
+        }
+        Terminal.success(
+            "Launched ${result.programName} from RAM " +
+                "(${result.selectionIndex + 1}/${result.availablePrograms.size} in Python File Manager).",
+        )
+    }
+
+    private fun runProject(arguments: List<String>) {
+        var projectRoot = Paths.get("").toAbsolutePath().normalize()
+        var requestedProgram: String? = null
+        var index = 0
+        while (index < arguments.size) {
+            when (val argument = arguments[index]) {
+                "--project" -> {
+                    index++
+                    require(index < arguments.size) { "--project requires a directory" }
+                    projectRoot = Paths.get(arguments[index]).toAbsolutePath().normalize()
+                }
+                "--program" -> {
+                    index++
+                    require(index < arguments.size) { "--program requires a calculator program name" }
+                    requestedProgram = arguments[index].uppercase()
+                }
+                else -> error("Unknown run option: $argument")
+            }
+            index++
+        }
+
+        val project = EvoProjectResolver.resolve(projectRoot.resolve(EvoProjectManifest.FILE_NAME))
+        val ramPrograms = project.programs.filterNot { it.entry.archived }
+        val launchProgram = requestedProgram ?: ramPrograms.singleOrNull()?.entry?.programName
+            ?: error("run requires --program NAME when the project has more than one RAM program")
+        Terminal.info("CONNECT", "Looking for a TI-84 Evo over USB…")
+        val result = CliTransport.auto().use { transport ->
+            transport.open()
+            Terminal.success("Connected to ${transport.description}")
+            EvoProjectRunner(transport).run(
+                project,
+                launchProgram,
+                onProgress = { message -> Terminal.info("RUN", message) },
+            )
+        }
+        Terminal.success(
+            "Launched ${result.launch.programName}; uploaded ${result.uploadedPrograms.size}, " +
+                "skipped ${result.skippedPrograms}.",
+        )
     }
 
     private fun send(arguments: List<String>) {
@@ -551,6 +612,8 @@ object EvoCli {
               ti84-evo archive NAME[:TYPE] [NAME[:TYPE] ...]
               ti84-evo delete [--yes] NAME[:TYPE] [NAME[:TYPE] ...]
               ti84-evo list-files
+              ti84-evo launch PROGRAM
+              ti84-evo run [--project DIR] [--program PROGRAM]
               ti84-evo diagnose-resources --output DIR [--include-directory] [--include-screen] [--resource URI ...]
               ti84-evo backup OUTPUT-DIRECTORY
               ti84-evo hardware-acceptance OUTPUT-DIRECTORY --backup DIRECTORY

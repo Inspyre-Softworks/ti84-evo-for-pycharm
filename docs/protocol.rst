@@ -321,6 +321,26 @@ through the Evo variable :term:`endpoint`. The plugin does not treat the
 calculator as a normal desktop filesystem and does not upload the bundled
 editor stubs.
 
+Python launch path
+------------------
+
+The Evo protocol does not expose a confirmed execute-by-name operation. After
+project synchronization, the launcher deliberately reads::
+
+   hh01/get/hh01/inf/res?name=directory&gotohome=1
+
+This returns the calculator to a deterministic Calculator-app state while also
+providing the RAM Python program list. Archived type-15 entries are rejected
+because the Python runtime executes source from RAM.
+
+The launcher then sends ``PRGM``, ``Down``, and ``Enter`` to open the Python
+File Manager. Once Python has initialized, it sends the target's first-letter
+scancode to use File Manager alpha search, moves down only among matching
+initials, and sends ``Y=`` for the on-screen **Run** action. Each batch uses the
+same ``hh01/sys/scancode`` transaction used by List Editor restoration. The
+launcher reports successful dispatch; it does not provide a remote process or
+Python output channel.
+
 Python project pull path
 ------------------------
 

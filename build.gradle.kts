@@ -47,6 +47,7 @@ val marketplaceChangeNotes = run {
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
+            .replace(Regex("\\[([^]]+)]\\((https://[^ )]+)\\)"), "<a href=\"$2\">$1</a>")
     }
     require(rendered.isNotEmpty()) { "$heading must contain at least one update note" }
     rendered.joinToString(separator = "", prefix = "<ul>", postfix = "</ul>") { "<li>$it</li>" }

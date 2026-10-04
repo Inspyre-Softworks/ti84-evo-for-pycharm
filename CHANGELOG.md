@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0
+
+- [Feature - Production] Add a PyCharm run configuration that incrementally pushes a configured TI-Python project, launches a selected RAM program, and can open a live calculator screen viewer. See the [run-configuration guide](https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm/blob/main/docs/projects.rst#run-a-project).
+- [Feature - Production] Push-and-run configured projects or launch existing RAM Python programs from the CLI with deterministic File Manager navigation.
+
 ## 0.6.0
 
 - [Feature - Production] Show formatted release notes once when the TI-84 Evo tool window first opens after installing a new plugin version.
