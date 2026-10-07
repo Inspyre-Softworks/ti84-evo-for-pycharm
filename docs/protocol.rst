@@ -309,6 +309,13 @@ which restores the default L1–L6 columns without changing their values. An
 already-empty built-in list still runs this restoration because its directory
 entry does not prove that its editor column is visible.
 
+The corresponding hardware-confirmed scancodes are tracked independently from
+SmartPad HID chords: ``2nd=36``, ``Mode=37``, ``Stat=20``, ``5=1B``, and
+``Enter=09`` (hexadecimal). Release 0.8.0 exposes these through ``EvoKey`` and
+``EvoScancodeMap``. No other key is marked confirmed or inferred yet. A future
+complete map must come from the explicit, user-driven hardware probe rather
+than assuming that HID usages and calculator scancodes correspond.
+
 Python upload path
 ------------------
 
@@ -320,6 +327,26 @@ repeat encoding, and element-aligned data chunks, then transfers the payload
 through the Evo variable :term:`endpoint`. The plugin does not treat the
 calculator as a normal desktop filesystem and does not upload the bundled
 editor stubs.
+
+Python launch path
+------------------
+
+The Evo protocol does not expose a confirmed execute-by-name operation. After
+project synchronization, the launcher deliberately reads::
+
+   hh01/get/hh01/inf/res?name=directory&gotohome=1
+
+This returns the calculator to a deterministic Calculator-app state while also
+providing the RAM Python program list. Archived type-15 entries are rejected
+because the Python runtime executes source from RAM.
+
+The launcher then sends ``PRGM``, ``Down``, and ``Enter`` to open the Python
+File Manager. Once Python has initialized, it sends the target's first-letter
+scancode to use File Manager alpha search, moves down only among matching
+initials, and sends ``Y=`` for the on-screen **Run** action. Each batch uses the
+same ``hh01/sys/scancode`` transaction used by List Editor restoration. The
+launcher reports successful dispatch; it does not provide a remote process or
+Python output channel.
 
 Python project pull path
 ------------------------

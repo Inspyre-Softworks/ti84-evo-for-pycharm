@@ -61,6 +61,45 @@ class EvoLinkTest {
     }
 
     @Test
+    fun `screen capture reconnects and retries after a transient timeout`() {
+        val framebuffer = byteArrayOf(0x12, 0x34)
+        val responses = ArrayDeque<ByteArray>().apply {
+            addAll(screenRead(framebuffer))
+        }
+        val session = KermitPacketCodec.Session()
+        var reads = 0
+        var opens = 0
+        var closes = 0
+        val transport = object : EvoTransport {
+            override val description = "test"
+            override fun open() {
+                opens++
+            }
+            override fun close() {
+                closes++
+            }
+            override fun write(data: ByteArray) {
+                val packet = KermitPacketCodec.parsePacket(data, session)
+                if (packet.type == 'S') session.updateFromSendInit(sendInitAck)
+            }
+            override fun readPacketBytes(): ByteArray {
+                if (reads++ == 0) throw EvoTimeoutException("timed out after 0/1 bytes")
+                return responses.removeFirst()
+            }
+        }
+
+        val capture = EvoLink(transport).getScreenCapture()
+
+        assertEquals(2, capture.width)
+        assertEquals(1, capture.height)
+        assertEquals(8, capture.bitsPerPixel)
+        assertContentEquals(framebuffer, capture.framebuffer)
+        assertEquals(1, closes)
+        assertEquals(1, opens)
+        assertTrue(responses.isEmpty())
+    }
+
+    @Test
     fun `delete variables use negotiated data encoding and verify each selected entry`() {
         val ramName = tokenWords(0xE811, 0xE800, 0xE80C)
         val archiveName = tokenWords(0xE800, 0xE811, 0xE802)
@@ -275,6 +314,17 @@ class EvoLinkTest {
 
     private fun variableRead(entry: EvoDirectoryEntry, payload: ByteArray): List<ByteArray> {
         val request = buildGetRequest("hh01/xfr/${buildVariableResourceName(entry)}").decodeToString()
+        return resourceRead(request, payload)
+    }
+
+    private fun screenRead(framebuffer: ByteArray): List<ByteArray> {
+        val request = buildGetRequest("sys/screen").decodeToString()
+        val payload = cborMap(
+            "width" to cborUnsigned(2),
+            "height" to cborUnsigned(1),
+            "bpp" to cborUnsigned(8),
+            "data" to cborBytes(framebuffer),
+        )
         return resourceRead(request, payload)
     }
 

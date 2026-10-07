@@ -34,6 +34,8 @@ data class SmartPadKeyEvent(
     val usagePage: Int,
     val usage: Int,
     val hostKey: String,
+    val hidChord: SmartPadHidChord?,
+    val evoKey: EvoKey?,
     val calculatorKey: String?,
     val rawReport: ByteArray,
 )
@@ -53,7 +55,7 @@ data class SmartPadHidChord(val modifierByte: Int, val usage: Int) {
  */
 class SmartPadReportDecoder(
     private val reportLengths: Map<Int, Int> = mapOf(0 to BOOT_REPORT_BYTES),
-    private val calculatorKeyMap: Map<SmartPadHidChord, String> = SmartPadKeyMap.calculatorKeys,
+    private val evoKeyMap: Map<SmartPadHidChord, EvoKey> = SmartPadKeyMap.evoKeys,
 ) {
     private val previous = mutableMapOf<Int, SmartPadKeyState>()
 
@@ -123,16 +125,21 @@ class SmartPadReportDecoder(
         transition: SmartPadKeyTransition,
         usage: Int,
         chord: SmartPadHidChord? = null,
-    ) = SmartPadKeyEvent(
-        timestampNanos = timestampNanos,
-        reportId = state.reportId,
-        transition = transition,
-        usagePage = KEYBOARD_USAGE_PAGE,
-        usage = usage,
-        hostKey = SmartPadKeyMap.hostKeyName(usage),
-        calculatorKey = chord?.let(calculatorKeyMap::get),
-        rawReport = state.raw.copyOf(),
-    )
+    ): SmartPadKeyEvent {
+        val evoKey = chord?.let(evoKeyMap::get)
+        return SmartPadKeyEvent(
+            timestampNanos = timestampNanos,
+            reportId = state.reportId,
+            transition = transition,
+            usagePage = KEYBOARD_USAGE_PAGE,
+            usage = usage,
+            hostKey = SmartPadKeyMap.hostKeyName(usage),
+            hidChord = chord,
+            evoKey = evoKey,
+            calculatorKey = evoKey?.displayLabel,
+            rawReport = state.raw.copyOf(),
+        )
+    }
 
     private fun malformed(report: ByteArray, reason: String) =
         SmartPadDecodeResult.Malformed(report.copyOf(), reason)
@@ -209,8 +216,19 @@ object SmartPadKeyMap {
         chord(0x00, 0x28) to "ENTER",
     )
 
+    /**
+     * The captured map remains single-sourced above. [EvoKey] declaration
+     * order follows that physical sweep, so identity supplements the existing
+     * transport table without copying or re-inferring any chord.
+     */
+    val evoKeys: Map<SmartPadHidChord, EvoKey> =
+        calculatorKeys.keys.zip(EvoKey.entries).toMap()
+
     fun calculatorKeyName(modifierByte: Int, usage: Int): String? =
-        calculatorKeys[SmartPadHidChord(modifierByte, usage)]
+        evoKey(modifierByte, usage)?.displayLabel
+
+    fun evoKey(modifierByte: Int, usage: Int): EvoKey? =
+        evoKeys[SmartPadHidChord(modifierByte, usage)]
 
     fun hostKeyName(usage: Int): String = when (usage) {
         0x00 -> "None"

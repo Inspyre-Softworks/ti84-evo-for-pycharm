@@ -163,7 +163,7 @@ Where to go next
       :link: projects
       :link-type: doc
 
-      Configure, push, and pull a multi-file Python project safely.
+      Configure, push, run, and pull a multi-file Python project safely.
 
    .. grid-item-card:: Use the PowerShell CLI
       :link: cli

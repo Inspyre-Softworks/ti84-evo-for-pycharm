@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0
+
+- [Feature - Production] Add an opt-in, Windows-only SmartPad input service backed by device-specific Raw Input and show physical calculator key press/release activity beside the live screen viewer without suppressing normal Windows keyboard handling.
+- [Enhance] Give all 50 hardware-captured calculator keys stable `EvoKey` identities independent of their SmartPad HID chords and calculator scancodes.
+- [Feature - Dev] Record the five existing hardware-confirmed `hh01/sys/scancode` mappings separately from an intentionally empty inferred map, providing an evidence-safe foundation for the user-driven scancode probe and later recording/replay work.
+
+## 0.7.0
+
+- [Feature - Production] Add a PyCharm run configuration that incrementally pushes a configured TI-Python project, launches a selected RAM program, and can open a live calculator screen viewer. See the [run-configuration guide](https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm/blob/main/docs/projects.rst#run-a-project).
+- [Feature - Production] Push-and-run configured projects or launch existing RAM Python programs from the CLI with deterministic File Manager navigation.
+- [Bugfix] Keep the live calculator screen viewer running through transient framebuffer read timeouts by reconnecting and retrying the interrupted capture.
+
 ## 0.6.0
 
 - [Feature - Production] Show formatted release notes once when the TI-84 Evo tool window first opens after installing a new plugin version.

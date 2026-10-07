@@ -12,7 +12,7 @@ class EvoChangelogTest {
 
             - [Bugfix] Add `preview` for A & B.
               Continue with **recording**.
-            - [Feature - Production] Add a macro pad.
+            - [Feature - Production] Add a [macro pad](https://example.com/guide).
             - [Bugfix] Fix image orientation.
 
             ## 0.5.0
@@ -24,7 +24,11 @@ class EvoChangelogTest {
         assertContains(html, "<code>preview</code>")
         assertContains(html, "A &amp; B")
         assertContains(html, "<b>recording</b>")
-        assertContains(html, "<h3>Feature - Production</h3><ul><li>Add a macro pad.</li></ul>")
+        assertContains(
+            html,
+            "<h3>Feature - Production</h3><ul><li>Add a " +
+                "<a href=\"https://example.com/guide\">macro pad</a>.</li></ul>",
+        )
         assertContains(html, "<h3>Bugfix</h3>")
         assertContains(html, "<li>Fix image orientation.</li>")
         assert(!html.contains("<h3>Docs</h3>"))

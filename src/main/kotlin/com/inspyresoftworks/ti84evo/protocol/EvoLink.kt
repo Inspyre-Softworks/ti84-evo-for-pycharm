@@ -28,8 +28,8 @@ class EvoLink(private val transport: EvoTransport) {
 
     fun getAttributes(): Map<String, Any?> = decodeStringMap(getResource("sys/attributes"))
 
-    fun getDirectory(): List<EvoDirectoryEntry> = EvoDirectoryCodec.decode(
-        getResource("hh01/inf/res?name=directory"),
+    fun getDirectory(goHome: Boolean = false): List<EvoDirectoryEntry> = EvoDirectoryCodec.decode(
+        getResource("hh01/inf/res?name=directory" + if (goHome) "&gotohome=1" else ""),
     )
 
     fun getVariable(entry: EvoDirectoryEntry): ByteArray {
@@ -77,7 +77,29 @@ class EvoLink(private val transport: EvoTransport) {
     }
 
     fun getScreenCapture(): EvoScreenCapture {
-        val screen = decodeStringMap(getResource("sys/screen"))
+        var lastFailure: EvoProtocolException? = null
+
+        repeat(SCREEN_READ_ATTEMPTS) { attempt ->
+            try {
+                return decodeScreenCapture(getResource("sys/screen"))
+            } catch (error: EvoProtocolException) {
+                lastFailure = error
+                if (attempt < SCREEN_READ_ATTEMPTS - 1) {
+                    Thread.sleep(300L * (attempt + 1))
+                    reconnect()
+                }
+            }
+        }
+
+        throw EvoProtocolException(
+            "could not capture the calculator screen after $SCREEN_READ_ATTEMPTS attempts: " +
+                lastFailure?.message,
+            lastFailure,
+        )
+    }
+
+    private fun decodeScreenCapture(raw: ByteArray): EvoScreenCapture {
+        val screen = decodeStringMap(raw)
         val width = screen.requireInt("width")
         val height = screen.requireInt("height")
         val bpp = screen.requireInt("bpp")
@@ -225,6 +247,7 @@ class EvoLink(private val transport: EvoTransport) {
 
     private companion object {
         const val DELETE_ATTEMPTS = 2
+        const val SCREEN_READ_ATTEMPTS = 3
         const val VARIABLE_READ_ATTEMPTS = 3
     }
 }

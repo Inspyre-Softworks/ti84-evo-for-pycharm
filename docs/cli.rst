@@ -39,6 +39,7 @@ Command map
        list [label="list-files"];
        diagnose [label="diagnose-resources"];
        send [label="send / pull"];
+       run [label="run / launch"];
        vars [label="archive / delete"];
        menus [label="install-context-menu\nuninstall-context-menu"];
        backup [label="backup /\nhardware-acceptance"];
@@ -46,6 +47,7 @@ Command map
        cli -> read -> list;
        read -> diagnose;
        cli -> sync -> send;
+       sync -> run;
        cli -> mutate -> vars;
        cli -> shell -> menus;
        cli -> safety -> backup;
@@ -61,6 +63,8 @@ Common commands
    .\ti84-evo.ps1 send --archive .\scripts
    .\ti84-evo.ps1 send
    .\ti84-evo.ps1 send --always-rebuild
+   .\ti84-evo.ps1 run --project . --program MAIN
+   .\ti84-evo.ps1 launch MAIN
    .\ti84-evo.ps1 pull --project .
    .\ti84-evo.ps1 pull --project . --force
    .\ti84-evo.ps1 archive MAIN:15
@@ -114,6 +118,20 @@ argument sends applicable ``.py`` files directly. Use ``--archive`` or
 ``pull --project DIR`` reconstructs source files and the project manifest. It
 refuses to replace changed local files unless ``--force`` (or ``--overwrite``)
 is supplied.
+
+Run and launch
+--------------
+
+``run`` reads a project manifest, incrementally uploads changed entries, and
+launches the selected RAM program. Use ``--project DIR`` when the manifest is
+not in the current directory and ``--program NAME`` when the project declares
+more than one RAM program.
+
+``launch PROGRAM`` skips project synchronization and starts an existing RAM
+Python program. Both commands normalize the calculator to its home state, open
+the Python File Manager, select by alphabetic jump, and send its Run softkey.
+They finish after dispatching the launch; calculator output is not streamed to
+the host terminal.
 
 Archive and delete
 ------------------
