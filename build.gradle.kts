@@ -92,6 +92,8 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
     implementation("com.fazecast:jSerialComm:2.11.4")
+    implementation("net.java.dev.jna:jna:5.19.1")
+    implementation("net.java.dev.jna:jna-platform:5.19.1")
     runtimeOnly("org.jcodec:jcodec:0.2.5")
     runtimeOnly("org.jcodec:jcodec-javase:0.2.5")
 
@@ -165,6 +167,9 @@ kotlin {
 
 tasks.processResources {
     from("third-party/JCodec-LICENSE.txt") {
+        into("META-INF")
+    }
+    from("third-party/JNA-LICENSE.txt") {
         into("META-INF")
     }
     from("scripts/utils") {

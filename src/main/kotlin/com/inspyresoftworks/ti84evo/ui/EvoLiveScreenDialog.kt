@@ -3,9 +3,13 @@ package com.inspyresoftworks.ti84evo.ui
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
+import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import com.inspyresoftworks.ti84evo.protocol.EvoLink
+import com.inspyresoftworks.ti84evo.smartpad.SmartPadInputService
+import com.inspyresoftworks.ti84evo.smartpad.SmartPadInputState
+import com.inspyresoftworks.ti84evo.smartpad.SmartPadKeyTransition
 import com.inspyresoftworks.ti84evo.transport.EvoSerialTransport
 import java.awt.BorderLayout
 import java.awt.Dimension
@@ -23,6 +27,14 @@ internal class EvoLiveScreenDialog private constructor(private val ownerProject:
         preferredSize = Dimension(640, 480)
     }
     private val status = JBLabel("Connecting to the calculator...")
+    private val smartPadStatus = JBLabel("SmartPad input is off.")
+    private val smartPadEnabled = JBCheckBox("Show physical SmartPad key activity (Windows)").apply {
+        isSelected = false
+        addActionListener { setSmartPadEnabled(isSelected) }
+    }
+    private val smartPadService = ApplicationManager.getApplication().getService(SmartPadInputService::class.java)
+    private var smartPadInputSubscription: AutoCloseable? = null
+    private var smartPadStateSubscription: AutoCloseable? = null
 
     @Volatile
     private var running = true
@@ -42,7 +54,11 @@ internal class EvoLiveScreenDialog private constructor(private val ownerProject:
     override fun createCenterPanel(): JComponent = JPanel(BorderLayout(0, 8)).apply {
         border = JBUI.Borders.empty(10)
         add(screen, BorderLayout.CENTER)
-        add(status, BorderLayout.SOUTH)
+        add(JPanel(BorderLayout(0, 4)).apply {
+            add(status, BorderLayout.NORTH)
+            add(smartPadEnabled, BorderLayout.CENTER)
+            add(smartPadStatus, BorderLayout.SOUTH)
+        }, BorderLayout.SOUTH)
     }
 
     override fun doOKAction() {
@@ -97,8 +113,55 @@ internal class EvoLiveScreenDialog private constructor(private val ownerProject:
         }
     }
 
+    private fun setSmartPadEnabled(enabled: Boolean) {
+        smartPadInputSubscription?.close()
+        smartPadStateSubscription?.close()
+        smartPadInputSubscription = null
+        smartPadStateSubscription = null
+        if (!enabled) {
+            smartPadService.stop()
+            smartPadStatus.text = "SmartPad input is off."
+            return
+        }
+
+        smartPadInputSubscription = smartPadService.addListener { event ->
+            val key = event.keyEvent.evoKey ?: return@addListener
+            ApplicationManager.getApplication().invokeLater {
+                if (running && smartPadEnabled.isSelected) {
+                    val transition = when (event.keyEvent.transition) {
+                        SmartPadKeyTransition.DOWN -> "pressed"
+                        SmartPadKeyTransition.UP -> "released"
+                    }
+                    smartPadStatus.text = "SmartPad: ${key.displayLabel} $transition"
+                }
+            }
+        }
+        smartPadStateSubscription = smartPadService.addStateListener { state, error ->
+            ApplicationManager.getApplication().invokeLater {
+                if (running && smartPadEnabled.isSelected) {
+                    smartPadStatus.text = when (state) {
+                        SmartPadInputState.DISABLED -> "SmartPad input is off."
+                        SmartPadInputState.STARTING -> "Starting SmartPad input..."
+                        SmartPadInputState.LISTENING -> "SmartPad input is listening for the TI-84 Evo."
+                        SmartPadInputState.UNSUPPORTED -> "SmartPad input is currently Windows-only."
+                        SmartPadInputState.FAILED -> "SmartPad input stopped: ${error?.message ?: "unknown error"}"
+                    }
+                }
+            }
+        }
+        smartPadService.start()
+        if (smartPadService.state == SmartPadInputState.LISTENING) {
+            smartPadStatus.text = "SmartPad input is listening for the TI-84 Evo."
+        }
+    }
+
     private fun stopCapture() {
         running = false
+        smartPadInputSubscription?.close()
+        smartPadStateSubscription?.close()
+        smartPadInputSubscription = null
+        smartPadStateSubscription = null
+        if (smartPadEnabled.isSelected) smartPadService.stop()
         runCatching { transport?.close() }
         remove(ownerProject, this)
     }

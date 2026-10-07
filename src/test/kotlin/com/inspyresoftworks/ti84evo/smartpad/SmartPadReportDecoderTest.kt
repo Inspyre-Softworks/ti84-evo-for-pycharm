@@ -11,7 +11,7 @@ class SmartPadReportDecoderTest {
     @Test
     fun `key down and key up are derived from successive reports`() {
         val decoder = SmartPadReportDecoder(
-            calculatorKeyMap = mapOf(SmartPadHidChord(0, 0x3A) to "Y="),
+            evoKeyMap = mapOf(SmartPadHidChord(0, 0x3A) to EvoKey.Y_EQUALS),
         )
 
         val down = decoder.accept(report(0x00, 0x3A), timestampNanos = 10)
@@ -22,6 +22,7 @@ class SmartPadReportDecoderTest {
         assertEquals(SmartPadKeyTransition.DOWN, down.single().transition)
         assertEquals("F1", down.single().hostKey)
         assertEquals("Y=", down.single().calculatorKey)
+        assertEquals(EvoKey.Y_EQUALS, down.single().evoKey)
         assertTrue(held.isEmpty())
         assertEquals(SmartPadKeyTransition.UP, up.single().transition)
         assertContentEquals(report(), up.single().rawReport)
@@ -99,11 +100,15 @@ class SmartPadReportDecoderTest {
     fun `captured physical map contains all 50 unique calculator keys`() {
         assertEquals(50, SmartPadKeyMap.calculatorKeys.size)
         assertEquals(50, SmartPadKeyMap.calculatorKeys.values.toSet().size)
+        assertEquals(50, SmartPadKeyMap.evoKeys.size)
+        assertEquals(EvoKey.entries.toSet(), SmartPadKeyMap.evoKeys.values.toSet())
+        assertEquals(EvoKey.entries, SmartPadKeyMap.evoKeys.values.toList())
         assertEquals("Y=", SmartPadKeyMap.calculatorKeyName(0x00, 0x6F))
         assertEquals("WINDOW", SmartPadKeyMap.calculatorKeyName(0x05, 0x6C))
         assertEquals("LOG", SmartPadKeyMap.calculatorKeyName(0x02, 0x69))
         assertEquals("ON", SmartPadKeyMap.calculatorKeyName(0x00, 0x29))
         assertEquals("ENTER", SmartPadKeyMap.calculatorKeyName(0x00, 0x28))
+        assertEquals(EvoKey.ENTER, SmartPadKeyMap.evoKey(0x00, 0x28))
     }
 
     @Test

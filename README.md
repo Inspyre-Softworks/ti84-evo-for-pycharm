@@ -172,12 +172,14 @@ The USB and transfer layers are implemented natively in Kotlin. Protocol behavio
 
 ## Project status
 
-Current version 0.7.0 adds a PyCharm run configuration and CLI commands that
-incrementally push and launch a selected RAM Python program, plus a live screen
-viewer that can open after IDE launches. The separate optional [Windows
-SmartPad macro pad](docs/smartpad.rst) maps calculator keys to
-shortcuts without changing the production plugin. Planned work includes
-variable renaming and editable TI-BASIC programs.
+Current version 0.8.0 adds an opt-in, device-specific Windows SmartPad input
+service and can show physical calculator key activity beside the live screen
+viewer. Calculator keys now have stable identities independent of their HID
+chords and the separately evidenced host-to-calculator scancodes. The optional
+[Windows SmartPad macro pad](docs/smartpad.rst) remains available as a separate
+shortcut utility. Planned work includes the deliberate hardware-assisted
+scancode probe, recording/replay, variable renaming, and editable TI-BASIC
+programs.
 
 Automated tests and plugin packaging run in GitHub Actions, but successful CI cannot verify calculator firmware behavior, USB hardware, or every host configuration.
 

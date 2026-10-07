@@ -8,11 +8,13 @@ as substitutes for captured USB reports.
 
 This protocol and diagnostic foundation shipped with project release 0.5.0.
 Release 0.6.0 added the separate Windows macro pad and bundled developer
-utilities.
+utilities. Release 0.8.0 adds an opt-in, Windows-only production input service
+that identifies the originating TI keyboard with Raw Input.
 
-The production plugin does not intercept keyboard input. The capture utility,
-monitor, and optional Windows macro pad are separate tools, kept independent
-from the :term:`CDC`/:term:`Kermit` implementation.
+The production plugin does not install a generic global shortcut listener or
+open the keyboard exclusively. The capture utility, monitor, production input
+service, and optional Windows macro pad remain independent from the
+:term:`CDC`/:term:`Kermit` implementation.
 
 Evidence labels
 ---------------
@@ -743,10 +745,50 @@ is independent of PyCharm UI classes:
 
 * ``SmartPadMonitor`` formats UI-independent diagnostic frames.
 
-Based only on confirmed behavior, the safe plugin candidates are:
+Production Windows input
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-* an opt-in SmartPad monitor showing calculator key, full HID chord, raw report,
-  and press/release/unchanged state;
+Release 0.8.0 implements the first production candidate behind an unchecked
+**Show physical SmartPad key activity (Windows)** option in the live screen
+viewer. Enabling it starts ``SmartPadInputService``; closing the viewer or
+clearing the option stops the backend. It does not consume or remap ordinary
+calculator input.
+
+The implementation has three explicit layers:
+
+* ``SmartPadInputBackend`` supplies device identity and raw report state;
+
+* ``SmartPadReportDecoder`` remains the sole interpreter of the captured HID
+  mapping; and
+
+* ``SmartPadInputService`` owns lifecycle and listeners and emits events tagged
+  ``PHYSICAL_SMARTPAD``.
+
+On Windows, ``WindowsRawInputSmartPadBackend`` registers the keyboard top-level
+collection without ``RIDEV_NOLEGACY``. Windows therefore continues normal
+keyboard handling. Raw Input identifies the source device but exposes
+keyboard make/break records rather than the original USB packet, so the backend
+reconstructs the calculator's conventional eight-byte boot-keyboard state per
+device. It accepts only the ``VID_0451&PID_E018&MI_03`` device path and passes
+the reconstructed report to the existing decoder. Other keyboards are ignored.
+
+Raw Input permits only one receiving window per raw-input device class in a
+process. The service is consequently opt-in and active only for a requested
+viewer session. It refuses to replace an existing keyboard Raw Input
+registration owned by another IDE component. Other platforms report an
+explicit unsupported state; there is no generic shortcut-listener fallback.
+
+``EvoKey`` gives each of the 50 captured physical keys a stable identity and a
+separate display label. HID chords remain in ``SmartPadKeyMap``. The independent
+``EvoScancodeMap`` currently marks only ``2nd`` (``36``), ``Mode`` (``37``),
+``Stat`` (``20``), ``5`` (``1B``), and ``Enter`` (``09``) as hardware-confirmed.
+Its inferred map is deliberately empty. The numbers are hexadecimal and are
+not derived from HID usages.
+
+The remaining safe plugin candidates are:
+
+* extending the opt-in viewer indicator into a compact monitor showing the full
+  HID chord, raw report, and recording state;
 
 * a mapping inspector initialized from the captured 50-key table and able to
   retain/display unknown future chords;

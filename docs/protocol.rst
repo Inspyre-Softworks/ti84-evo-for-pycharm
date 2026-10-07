@@ -309,6 +309,13 @@ which restores the default L1–L6 columns without changing their values. An
 already-empty built-in list still runs this restoration because its directory
 entry does not prove that its editor column is visible.
 
+The corresponding hardware-confirmed scancodes are tracked independently from
+SmartPad HID chords: ``2nd=36``, ``Mode=37``, ``Stat=20``, ``5=1B``, and
+``Enter=09`` (hexadecimal). Release 0.8.0 exposes these through ``EvoKey`` and
+``EvoScancodeMap``. No other key is marked confirmed or inferred yet. A future
+complete map must come from the explicit, user-driven hardware probe rather
+than assuming that HID usages and calculator scancodes correspond.
+
 Python upload path
 ------------------
 
