@@ -25,7 +25,7 @@ TI-84 Evo adds a dedicated tool window to PyCharm for sending Python programs, m
 - Capture the calculator screen and save it as a full-resolution PNG.
 - Read and copy detailed calculator information.
 - Get completion, parameter hints, quick documentation, and inspections for `ti_draw`, `ti_image`, `ti_system`, `ti_plotlib`, `ti_hub`, and `ti_rover`.
-- Use the companion PowerShell CLI and optional Windows Explorer context menus outside PyCharm.
+- Use the companion CLI through Conda on Windows, macOS, or Linux, with optional Windows Explorer context menus.
 - Capture lossless calculator resources and investigate OS 7.1 SmartPad USB/HID behavior with separate, opt-in developer diagnostics.
 
 ## Find what you need
@@ -118,7 +118,16 @@ key = ti_system.wait_key()
 
 The stubs are used by the editor only. They are not a desktop implementation of the TI modules and are never uploaded to the calculator.
 
-## Companion PowerShell CLI
+## Companion CLI
+
+The repository includes a cross-platform Conda recipe. From a checkout with
+`conda-build` installed:
+
+```console
+conda build packaging/conda
+conda install --use-local ti84-evo-cli
+ti84-evo --help
+```
 
 Each GitHub release includes a separate `ti84-evo-cli-<version>.zip` for Windows. Install Java 25, extract the archive, and keep `ti84-evo.ps1` beside `ti84-evo-cli.jar`.
 
@@ -172,19 +181,20 @@ The USB and transfer layers are implemented natively in Kotlin. Protocol behavio
 
 ## Project status
 
-Current version 0.8.0 adds an opt-in, device-specific Windows SmartPad input
-service and can show physical calculator key activity beside the live screen
-viewer. Calculator keys now have stable identities independent of their HID
-chords and the separately evidenced host-to-calculator scancodes. The optional
-[Windows SmartPad macro pad](docs/smartpad.rst) remains available as a separate
-shortcut utility. Planned work includes the deliberate hardware-assisted
-scancode probe, recording/replay, variable renaming, and editable TI-BASIC
-programs.
+Current version 0.9.0 adds a cross-platform Conda package for the standalone
+CLI, including native launchers and a managed Java 25 runtime. The opt-in,
+device-specific Windows SmartPad input service can show physical calculator key
+activity beside the live screen viewer, and the optional [Windows SmartPad macro
+pad](docs/smartpad.rst) remains available as a separate shortcut utility.
+Planned work includes the deliberate hardware-assisted scancode probe,
+recording/replay, variable renaming, and editable TI-BASIC programs.
 
 Automated tests and plugin packaging run in GitHub Actions, but successful CI cannot verify calculator firmware behavior, USB hardware, or every host configuration.
 
 ## License
 
-Copyright © 2026 Taylor B. | Inspyre-Softworks. All rights reserved.
+Copyright © 2026 Taylor B. | Inspyre-Softworks.
 
-No open-source license has been published for this project. See [LICENSE](LICENSE) for details.
+TI-84 Evo is licensed under the [MIT License](LICENSE). Bundled third-party
+components remain under their respective licenses; see
+[third-party/THIRD-PARTY-NOTICES.md](third-party/THIRD-PARTY-NOTICES.md).

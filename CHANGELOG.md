@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.0
+
+- [Feature - Production] Add a cross-platform Conda package for the standalone CLI, including native `ti84-evo` launchers, a Java 25 runtime dependency, and local build instructions.
+- [Enhance] Release TI-84 Evo under the MIT License and include applicable third-party license notices in the plugin, standalone CLI, and Conda distributions.
+
 ## 0.8.0
 
 - [Feature - Production] Add an opt-in, Windows-only SmartPad input service backed by device-specific Raw Input and show physical calculator key press/release activity beside the live screen viewer without suppressing normal Windows keyboard handling.

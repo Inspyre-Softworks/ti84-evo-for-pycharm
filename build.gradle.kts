@@ -131,6 +131,20 @@ val cliJar = tasks.register<Jar>("cliJar") {
         into("META-INF")
         rename { "ti84-evo-version.txt" }
     }
+    from(layout.projectDirectory.file("LICENSE")) {
+        into("META-INF")
+        rename { "ti84-evo-license.txt" }
+    }
+    from("third-party") {
+        include(
+            "Apache-2.0.txt",
+            "JCodec-LICENSE.txt",
+            "JNA-LICENSE.txt",
+            "jSerialComm-NOTICE.txt",
+            "THIRD-PARTY-NOTICES.md",
+        )
+        into("META-INF/licenses")
+    }
     from(
         configurations.runtimeClasspath.get()
             .filter {
@@ -155,7 +169,17 @@ tasks.register<Zip>("cliDistZip") {
     from("scripts/utils/EvoScreenBenchmark.java") { into("scripts/utils") }
     from("scripts/utils/smartpad_usb.py") { into("scripts/utils") }
     from("scripts/utils/requirements-smartpad.txt") { into("scripts/utils") }
-    from("third-party/JCodec-LICENSE.txt") { into("licenses") }
+    from(layout.projectDirectory.file("LICENSE"))
+    from("third-party") {
+        include(
+            "Apache-2.0.txt",
+            "JCodec-LICENSE.txt",
+            "JNA-LICENSE.txt",
+            "jSerialComm-NOTICE.txt",
+            "THIRD-PARTY-NOTICES.md",
+        )
+        into("licenses")
+    }
 }
 
 kotlin {
@@ -166,11 +190,15 @@ kotlin {
 }
 
 tasks.processResources {
-    from("third-party/JCodec-LICENSE.txt") {
-        into("META-INF")
-    }
-    from("third-party/JNA-LICENSE.txt") {
-        into("META-INF")
+    from("third-party") {
+        include(
+            "Apache-2.0.txt",
+            "JCodec-LICENSE.txt",
+            "JNA-LICENSE.txt",
+            "jSerialComm-NOTICE.txt",
+            "THIRD-PARTY-NOTICES.md",
+        )
+        into("META-INF/licenses")
     }
     from("scripts/utils") {
         include("EvoScreenBenchmark.java", "smartpad_macropad.py", "smartpad_usb.py", "requirements-smartpad.txt")
