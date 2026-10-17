@@ -8,6 +8,24 @@ for Windows PowerShell and can optionally add current-user Explorer actions.
 Install
 -------
 
+Conda package
+~~~~~~~~~~~~~
+
+The repository includes a noarch Conda recipe that installs the Java 25
+runtime and exposes ``ti84-evo`` on Windows, macOS, and Linux. Build and install
+it from a checkout with ``conda-build`` installed::
+
+   conda build packaging/conda
+   conda install --use-local ti84-evo-cli
+   ti84-evo --help
+
+On Windows, ``ti84-evo install-context-menu`` can still add the optional
+current-user Explorer actions. They use the Java runtime from the Conda
+environment directly, so a separate system Java installation is not required.
+
+ZIP distribution
+~~~~~~~~~~~~~~~~
+
 1. Install Java 25.
 2. Download ``ti84-evo-cli-<version>.zip`` from the matching `GitHub release
    <https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm/releases>`_, or

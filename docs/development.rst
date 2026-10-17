@@ -78,6 +78,15 @@ Use the wrapper for your platform:
 Set ``JAVA_HOME`` only if JDK 25 is not already selected. Generated
 distributions are written to ``build/distributions``.
 
+Build the standalone CLI's Conda package after installing ``conda-build``::
+
+   conda build packaging/conda
+
+The recipe reads the package version from the root ``VERSION`` file, builds the
+same fat JAR as ``cliDistZip``, and records Java 25 as both its build and runtime
+dependency. Use ``conda install --use-local ti84-evo-cli`` to exercise the
+result in a clean environment.
+
 Screen capture rate probe
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -232,7 +241,7 @@ Release checklist:
    ``[Enhance]``, ``[Code Clean]``, or ``[Docs]``. The build validates these
    tags for the current version; older release sections retain their original
    wording.
-3. Run ``test``, ``buildPlugin``, ``cliDistZip``,
+3. Run ``test``, ``buildPlugin``, ``cliDistZip``, build the Conda recipe,
    ``verifyPluginProjectConfiguration``, and ``verifyPlugin``.
 4. Push the release commit to ``main``.
 

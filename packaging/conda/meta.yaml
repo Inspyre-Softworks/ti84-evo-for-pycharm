@@ -1,0 +1,42 @@
+{% set version_match = load_file_regex(load_file="VERSION", regex_pattern="^([^\r\n]+)") %}
+{% set version = version_match[1] %}
+
+package:
+  name: ti84-evo-cli
+  version: "{{ version }}"
+
+source:
+  path: ../..
+
+build:
+  number: 0
+  noarch: generic
+
+requirements:
+  build:
+    - openjdk >=25,<26
+  run:
+    - openjdk >=25,<26
+
+test:
+  commands:
+    - ti84-evo --help
+
+about:
+  home: https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm
+  summary: Send, synchronize, inspect, and back up TI-84 Evo calculator files
+  description: |
+    The standalone TI-84 Evo CLI shares the PyCharm plugin's project,
+    transport, and protocol implementation. It can send and pull Python
+    projects, manage calculator variables, launch programs, capture diagnostic
+    resources, and create complete backups over USB.
+  license: MIT
+  license_file:
+    - LICENSE
+    - third-party/Apache-2.0.txt
+    - third-party/JCodec-LICENSE.txt
+    - third-party/JNA-LICENSE.txt
+    - third-party/jSerialComm-NOTICE.txt
+    - third-party/THIRD-PARTY-NOTICES.md
+  doc_url: https://ti84-evo-for-pycharm.readthedocs.io/
+  dev_url: https://github.com/Inspyre-Softworks/ti84-evo-for-pycharm
